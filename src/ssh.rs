@@ -62,10 +62,6 @@ pub fn options_for_profile(
     })
 }
 
-pub async fn connect_profile(profile: Profile, secret: Option<String>) -> AppResult<()> {
-    connect(options_for_profile(&profile, secret)?).await
-}
-
 pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
     let session = authenticate(options).await?;
     let channel = session.channel_open_session().await?;
@@ -78,6 +74,18 @@ pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
     let result = run_terminal(channel).await;
     disable_raw_mode()?;
     result
+}
+
+pub async fn open_shell(
+    options: ConnectionOptions,
+) -> AppResult<russh::ChannelStream<russh::client::Msg>> {
+    let session = authenticate(options).await?;
+    let channel = session.channel_open_session().await?;
+    channel
+        .request_pty(true, "xterm-256color", 120, 40, 0, 0, &[])
+        .await?;
+    channel.request_shell(true).await?;
+    Ok(channel.into_stream())
 }
 
 pub async fn open_sftp(options: ConnectionOptions) -> AppResult<russh_sftp::client::SftpSession> {

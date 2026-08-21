@@ -6,7 +6,7 @@ use std::{
 };
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -15,9 +15,10 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
     Frame, Terminal,
 };
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{
     app::{Action, App, ProfileDraft},
@@ -85,6 +86,111 @@ pub fn run(app: &mut App) -> AppResult<Option<Action>> {
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     result
+}
+
+pub async fn run_shell(
+    profile_name: String,
+    mut stream: russh::ChannelStream<russh::client::Msg>,
+) -> AppResult<()> {
+    enable_raw_mode()?;
+    let mut output = stdout();
+    execute!(output, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(output);
+    let mut terminal = Terminal::new(backend)?;
+    let result = shell_event_loop(&mut terminal, &profile_name, &mut stream).await;
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+    result
+}
+
+async fn shell_event_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    profile_name: &str,
+    stream: &mut russh::ChannelStream<russh::client::Msg>,
+) -> AppResult<()> {
+    let mut buffer = [0_u8; 4096];
+    let mut transcript = String::new();
+
+    loop {
+        terminal.draw(|frame| draw_shell(frame, profile_name, &transcript))?;
+        tokio::select! {
+            read = stream.read(&mut buffer) => {
+                let count = read?;
+                if count == 0 {
+                    break;
+                }
+                transcript.push_str(&String::from_utf8_lossy(&buffer[..count]));
+                if transcript.len() > 32_000 {
+                    transcript.drain(..transcript.len() - 32_000);
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(40)) => {
+                while event::poll(Duration::from_millis(0))? {
+                    if let Event::Key(key) = event::read()? {
+                        if key.kind != KeyEventKind::Press {
+                            continue;
+                        }
+                        if key.modifiers.contains(KeyModifiers::CONTROL)
+                            && key.code == KeyCode::Char('q')
+                        {
+                            return Ok(());
+                        }
+                        if let Some(bytes) = key_bytes(key) {
+                            stream.write_all(&bytes).await?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn key_bytes(key: KeyEvent) -> Option<Vec<u8>> {
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        if let KeyCode::Char(character) = key.code {
+            let byte = (character.to_ascii_lowercase() as u8).wrapping_sub(b'a' - 1);
+            return Some(vec![byte]);
+        }
+    }
+    Some(match key.code {
+        KeyCode::Char(character) => character.to_string().into_bytes(),
+        KeyCode::Enter => vec![b'\r'],
+        KeyCode::Tab => vec![b'\t'],
+        KeyCode::Backspace => vec![0x7f],
+        KeyCode::Left => b"\x1b[D".to_vec(),
+        KeyCode::Right => b"\x1b[C".to_vec(),
+        KeyCode::Up => b"\x1b[A".to_vec(),
+        KeyCode::Down => b"\x1b[B".to_vec(),
+        KeyCode::Esc => vec![0x1b],
+        _ => return None,
+    })
+}
+
+fn draw_shell(frame: &mut Frame, profile_name: &str, transcript: &str) {
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(30), Constraint::Min(0)])
+        .split(frame.area());
+    let sidebar = Paragraph::new(vec![
+        Line::from(Span::styled(
+            "SSHCLI",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(format!("Connected: {profile_name}")),
+        Line::from(""),
+        Line::from("Ctrl+Q  return to connections"),
+    ])
+    .block(Block::default().borders(Borders::ALL).title(" Connection "));
+    frame.render_widget(sidebar, columns[0]);
+    let workspace = Paragraph::new(transcript)
+        .block(Block::default().borders(Borders::ALL).title(" Workspace "))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(workspace, columns[1]);
 }
 
 fn event_loop(
