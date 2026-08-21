@@ -12,10 +12,10 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
     Frame, Terminal,
 };
 
@@ -94,10 +94,9 @@ fn event_loop(
     let mut create_form = None;
     while !app.should_quit {
         terminal.draw(|frame| {
+            draw(frame, app);
             if let Some(form) = create_form.as_ref() {
                 draw_create_form(frame, form);
-            } else {
-                draw(frame, app);
             }
         })?;
 
@@ -307,7 +306,8 @@ fn draw(frame: &mut Frame, app: &App) {
 }
 
 fn draw_create_form(frame: &mut Frame, form: &CreateForm) {
-    let area = frame.area();
+    let area = centered_rect(70, 70, frame.area());
+    frame.render_widget(Clear, area);
     let block = Block::default()
         .borders(Borders::ALL)
         .title(" New Connection ");
@@ -349,6 +349,38 @@ fn draw_create_form(frame: &mut Frame, form: &CreateForm) {
     } else {
         form.error.as_str()
     };
-    let content = Paragraph::new(lines).block(Block::default().title(help));
-    frame.render_widget(content, inner);
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(2)])
+        .split(inner);
+    frame.render_widget(Paragraph::new(lines), sections[0]);
+    frame.render_widget(
+        Paragraph::new(help).style(if form.error.is_empty() {
+            Style::default().fg(Color::DarkGray)
+        } else {
+            Style::default().fg(Color::Red)
+        }),
+        sections[1],
+    );
+}
+
+fn centered_rect(horizontal: u16, vertical: u16, area: Rect) -> Rect {
+    let vertical_margin = (100 - vertical) / 2;
+    let horizontal_margin = (100 - horizontal) / 2;
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(vertical_margin),
+            Constraint::Percentage(vertical),
+            Constraint::Percentage(vertical_margin),
+        ])
+        .split(area);
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(horizontal_margin),
+            Constraint::Percentage(horizontal),
+            Constraint::Percentage(horizontal_margin),
+        ])
+        .split(rows[1])[1]
 }
