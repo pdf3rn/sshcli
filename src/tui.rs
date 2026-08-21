@@ -251,6 +251,11 @@ fn handle_create_key(form: &mut CreateForm, key: KeyEvent) -> Option<Action> {
         KeyCode::Backspace if form.field != 5 && form.field != 6 => {
             form.values[form.field].pop();
         }
+        KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            if form.field != 5 && form.field != 6 {
+                form.values[form.field].clear();
+            }
+        }
         KeyCode::Char(character) if form.field != 5 && form.field != 6 => {
             form.values[form.field].push(character);
         }
@@ -472,11 +477,13 @@ fn key_hint(key: &str, label: &str) -> Span<'static> {
 }
 
 fn draw_create_form(frame: &mut Frame, form: &CreateForm) {
-    let area = centered_rect(70, 70, frame.area());
+    let area = centered_rect(62, 46, frame.area());
     frame.render_widget(Clear, area);
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" New Connection ");
+        .border_style(Style::default().fg(BORDER))
+        .title(" New Connection ")
+        .title_style(Style::default().fg(ACCENT).add_modifier(Modifier::BOLD));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -487,47 +494,83 @@ fn draw_create_form(frame: &mut Frame, form: &CreateForm) {
         "User",
         "Identity file",
         "Authentication",
-        "Accept unknown host key",
+        "Host key",
     ];
-    let lines = labels
-        .iter()
-        .enumerate()
-        .map(|(index, label)| {
-            let style = if index == form.field {
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            Line::from(vec![
-                Span::styled(format!("{label:<24}"), style),
-                Span::styled(form.values[index].as_str(), style),
-            ])
-        })
-        .collect::<Vec<_>>();
-    let help = if form.error.is_empty() {
-        if form.field == 4 {
-            "Space: select existing ~/.ssh key | Enter: save | Esc: cancel"
-        } else {
-            "Tab/Up/Down: field | Space: select | Enter: save | Esc: cancel"
-        }
-    } else {
-        form.error.as_str()
-    };
-    let sections = Layout::default()
+    let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(2)])
+        .constraints(
+            labels
+                .iter()
+                .map(|_| Constraint::Length(1))
+                .chain(std::iter::once(Constraint::Length(2)))
+                .collect::<Vec<_>>(),
+        )
         .split(inner);
-    frame.render_widget(Paragraph::new(lines), sections[0]);
-    frame.render_widget(
-        Paragraph::new(help).style(if form.error.is_empty() {
-            Style::default().fg(Color::DarkGray)
+
+    for (index, label) in labels.iter().enumerate() {
+        let focused = index == form.field;
+        let toggle = matches!(index, 4 | 5 | 6);
+        let value = &form.values[index];
+        let value_text = if toggle {
+            format!("‹ {value} ›")
+        } else if focused {
+            format!("{value}█")
         } else {
-            Style::default().fg(Color::Red)
-        }),
-        sections[1],
-    );
+            value.clone()
+        };
+        let line = Line::from(vec![
+            Span::styled(
+                format!(" {label:<14}"),
+                Style::default().fg(if focused { ACCENT } else { MUTED }),
+            ),
+            Span::styled(
+                value_text,
+                if focused {
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(ACTIVE)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White).bg(SURFACE_ALT)
+                },
+            ),
+        ]);
+        frame.render_widget(
+            Paragraph::new(line).style(Style::default().bg(SURFACE)),
+            rows[index],
+        );
+    }
+
+    let hint = match form.field {
+        2 => "1-65535 · default 22".to_string(),
+        4 => format!(
+            "Space: cycle keys in ~/.ssh ({} found)",
+            form.key_options.len()
+        ),
+        5 => "Space: password / private-key / none".to_string(),
+        6 => "Space: accept unknown host keys yes/no".to_string(),
+        _ => "Type to edit · Ctrl+U clears the field".to_string(),
+    };
+    let footer = Paragraph::new(vec![
+        Line::from(Span::styled(
+            if form.error.is_empty() {
+                hint
+            } else {
+                form.error.clone()
+            },
+            if form.error.is_empty() {
+                Style::default().fg(ACCENT)
+            } else {
+                Style::default().fg(Color::Red)
+            },
+        )),
+        Line::from(Span::styled(
+            "Tab next · Enter save · Esc cancel",
+            Style::default().fg(MUTED),
+        )),
+    ])
+    .style(Style::default().bg(SURFACE));
+    frame.render_widget(footer, rows[labels.len()]);
 }
 
 fn centered_rect(horizontal: u16, vertical: u16, area: Rect) -> Rect {

@@ -69,7 +69,7 @@ SSH session:
 
 ## Creating connections from the TUI
 
-Press `n` in the connection list to open the new connection form. Navigate with `Tab` or the arrow keys, use `Space` to change authentication options, and press `Enter` to save. On the `Identity file` field, `Space` cycles through existing private keys in `~/.ssh`; public keys are excluded. The password or key passphrase is requested after the form without echoing it.
+Press `n` in the connection list to open the new connection modal. Navigate with `Tab` or the arrow keys, use `Space` to cycle authentication options and existing `~/.ssh` keys, `Ctrl+U` to clear the focused field, and press `Enter` to save. Validation errors appear inside the modal in red. The password or key passphrase is requested after the form without echoing it.
 
 SSH key files are read-only in this application. Creating or updating a profile never writes to, replaces, or deletes a selected key. Duplicate profile names are rejected instead of overwritten.
 
