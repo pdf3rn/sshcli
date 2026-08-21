@@ -26,6 +26,14 @@ use crate::{
     profiles::Authentication,
 };
 
+const BACKGROUND: Color = Color::Rgb(12, 15, 22);
+const SURFACE: Color = Color::Rgb(20, 25, 35);
+const SURFACE_ALT: Color = Color::Rgb(27, 34, 48);
+const BORDER: Color = Color::Rgb(60, 72, 94);
+const MUTED: Color = Color::Rgb(139, 151, 172);
+const ACCENT: Color = Color::Rgb(93, 211, 255);
+const ACTIVE: Color = Color::Rgb(52, 92, 133);
+
 struct CreateForm {
     values: Vec<String>,
     key_options: Vec<String>,
@@ -169,26 +177,35 @@ fn key_bytes(key: KeyEvent) -> Option<Vec<u8>> {
 }
 
 fn draw_shell(frame: &mut Frame, profile_name: &str, transcript: &str) {
+    frame.render_widget(
+        Block::default().style(Style::default().bg(BACKGROUND)),
+        frame.area(),
+    );
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(30), Constraint::Min(0)])
+        .constraints([Constraint::Length(32), Constraint::Min(0)])
         .split(frame.area());
     let sidebar = Paragraph::new(vec![
         Line::from(Span::styled(
             "SSHCLI",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from(format!("Connected: {profile_name}")),
+        Line::from(Span::styled("CONNECTED", Style::default().fg(Color::Green))),
+        Line::from(format!("{profile_name}")),
         Line::from(""),
-        Line::from("Ctrl+Q  return to connections"),
+        Line::from(Span::styled("Ctrl+Q", Style::default().fg(Color::Yellow))),
+        Line::from(Span::styled(
+            "return to connections",
+            Style::default().fg(MUTED),
+        )),
     ])
-    .block(Block::default().borders(Borders::ALL).title(" Connection "));
+    .style(Style::default().fg(Color::White).bg(SURFACE))
+    .block(panel(" Connection "));
     frame.render_widget(sidebar, columns[0]);
     let workspace = Paragraph::new(transcript)
-        .block(Block::default().borders(Borders::ALL).title(" Workspace "))
+        .style(Style::default().fg(Color::White).bg(Color::Black))
+        .block(panel(" Workspace "))
         .wrap(Wrap { trim: false });
     frame.render_widget(workspace, columns[1]);
 }
@@ -347,68 +364,130 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Action> {
 }
 
 fn draw(frame: &mut Frame, app: &App) {
+    frame.render_widget(
+        Block::default().style(Style::default().bg(BACKGROUND)),
+        frame.area(),
+    );
     let outer = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(2)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(2),
+        ])
         .split(frame.area());
+    let header = Paragraph::new(Line::from(vec![
+        Span::styled(
+            " SSHCLI ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("/ CONNECTIONS", Style::default().fg(MUTED)),
+        Span::raw("                                      "),
+        Span::styled(
+            format!("{} saved", app.profiles.len()),
+            Style::default().fg(MUTED),
+        ),
+    ]))
+    .style(Style::default().bg(SURFACE))
+    .block(panel(""));
+    frame.render_widget(header, outer[0]);
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(30), Constraint::Min(0)])
-        .split(outer[0]);
+        .constraints([Constraint::Length(34), Constraint::Min(0)])
+        .split(outer[1]);
 
     let items = app
         .profiles
         .iter()
-        .map(|profile| ListItem::new(profile.name.as_str()))
+        .map(|profile| {
+            ListItem::new(vec![
+                Line::from(Span::styled(
+                    format!("  {}", profile.name),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(Span::styled(
+                    format!("  {}@{}:{}", profile.username, profile.host, profile.port),
+                    Style::default().fg(MUTED),
+                )),
+            ])
+        })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
-    state.select(Some(app.selected_profile));
+    state.select((!app.profiles.is_empty()).then_some(app.selected_profile));
     let profile_list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Connections "),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::Blue)
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("> ");
+        .style(Style::default().bg(SURFACE))
+        .block(panel(" Connections "))
+        .highlight_style(Style::default().bg(ACTIVE).fg(Color::White))
+        .highlight_symbol(" ");
     frame.render_stateful_widget(profile_list, columns[0], &mut state);
 
-    let detail = Paragraph::new(vec![
-        Line::from(Span::styled(
-            "SSHCLI",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("A cross-platform SSH client for the terminal."),
-        Line::from(""),
-        Line::from("Phase 1: TUI foundation"),
-        Line::from("Phase 2: SSH interactive sessions available via connect"),
-        Line::from("Phase 3: profiles and secure credentials available"),
-    ])
-    .block(Block::default().borders(Borders::ALL).title(" Workspace "));
+    let detail_lines = if let Some(profile) = app.profiles.get(app.selected_profile) {
+        vec![
+            Line::from(Span::styled(
+                &profile.name,
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(Span::styled("READY", Style::default().fg(Color::Green))),
+            Line::from(""),
+            Line::from(Span::styled("Endpoint", Style::default().fg(MUTED))),
+            Line::from(format!("{}:{}", profile.host, profile.port)),
+            Line::from(Span::styled("User", Style::default().fg(MUTED))),
+            Line::from(profile.username.as_str()),
+            Line::from(""),
+            Line::from(Span::styled("Enter", Style::default().fg(Color::Yellow))),
+            Line::from("open SSH session"),
+            Line::from(Span::styled("s", Style::default().fg(Color::Yellow))),
+            Line::from("browse files with SFTP"),
+            Line::from(Span::styled("f", Style::default().fg(Color::Yellow))),
+            Line::from("start local forwarding"),
+        ]
+    } else {
+        vec![
+            Line::from(Span::styled(
+                "No connections yet",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            )),
+            Line::from("Press n to create your first SSH profile."),
+            Line::from(""),
+            Line::from(Span::styled("Your workspace", Style::default().fg(MUTED))),
+            Line::from("SSH sessions, SFTP browsers and tunnels"),
+            Line::from("will appear here when you connect."),
+        ]
+    };
+    let detail = Paragraph::new(detail_lines)
+        .style(Style::default().fg(Color::White).bg(SURFACE))
+        .block(panel(" Workspace "));
     frame.render_widget(detail, columns[1]);
 
     let footer = Paragraph::new(Line::from(vec![
-        Span::styled(" q ", Style::default().fg(Color::Yellow)),
-        Span::raw("quit  "),
-        Span::styled(" n ", Style::default().fg(Color::Yellow)),
-        Span::raw("new profile  "),
-        Span::styled(" Enter ", Style::default().fg(Color::Yellow)),
-        Span::raw("connect  |  "),
-        Span::styled(" s ", Style::default().fg(Color::Yellow)),
-        Span::raw("sftp  |  "),
-        Span::styled(" f ", Style::default().fg(Color::Yellow)),
-        Span::raw("forward  |  "),
-        Span::raw(app.status.as_str()),
+        key_hint("q", "quit"),
+        Span::raw("  "),
+        key_hint("n", "new"),
+        Span::raw("  "),
+        key_hint("Enter", "connect"),
+        Span::raw("  "),
+        key_hint("s", "sftp"),
+        Span::raw("  "),
+        key_hint("f", "forward"),
+        Span::raw("   "),
+        Span::styled(app.status.as_str(), Style::default().fg(MUTED)),
     ]))
-    .block(Block::default().borders(Borders::ALL));
-    frame.render_widget(footer, outer[1]);
+    .style(Style::default().bg(SURFACE_ALT))
+    .block(panel(""));
+    frame.render_widget(footer, outer[2]);
+}
+
+fn panel(title: &str) -> Block<'static> {
+    Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(BORDER))
+        .title(title.to_string())
+}
+
+fn key_hint(key: &str, label: &str) -> Span<'static> {
+    Span::styled(format!(" {key} {label}"), Style::default().fg(MUTED))
 }
 
 fn draw_create_form(frame: &mut Frame, form: &CreateForm) {
