@@ -285,6 +285,9 @@ async fn handle_profile_command(command: ProfileCommand) -> AppResult<()> {
                     "private-key authentication requires --identity-file".into(),
                 ));
             }
+            if let Some(identity_file) = identity_file.as_deref() {
+                validate_identity_file(identity_file)?;
+            }
             let secret = prompt_secret(&authentication)?;
             let profile = Profile {
                 name: name.clone(),
@@ -364,6 +367,15 @@ fn prompt_secret(authentication: &Authentication) -> AppResult<Option<String>> {
             }
         }
     }
+}
+
+fn validate_identity_file(path: &str) -> AppResult<()> {
+    if !std::path::Path::new(path).is_file() {
+        return Err(AppError::Profile(format!(
+            "identity file does not exist: {path}"
+        )));
+    }
+    Ok(())
 }
 
 fn save_profile(profile: Profile, secret: Option<String>) -> AppResult<()> {

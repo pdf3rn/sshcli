@@ -1,5 +1,9 @@
-use std::io::{self, stdout};
 use std::time::Duration;
+use std::{
+    fs,
+    io::{self, stdout},
+    path::Path,
+};
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
@@ -23,6 +27,7 @@ use crate::{
 
 struct CreateForm {
     values: Vec<String>,
+    key_options: Vec<String>,
     field: usize,
     error: String,
 }
@@ -39,10 +44,32 @@ impl Default for CreateForm {
                 "password".into(),
                 "no".into(),
             ],
+            key_options: available_identity_files(),
             field: 0,
             error: String::new(),
         }
     }
+}
+
+fn available_identity_files() -> Vec<String> {
+    let Some(home) = directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf()) else {
+        return Vec::new();
+    };
+    let ssh_dir = home.join(".ssh");
+    let mut keys = fs::read_dir(ssh_dir)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let name = path.file_name()?.to_str()?;
+            let is_candidate = path.is_file() && name.starts_with("id_") && !name.ends_with(".pub");
+            is_candidate.then(|| path.to_string_lossy().into_owned())
+        })
+        .collect::<Vec<_>>();
+    keys.sort();
+    keys
 }
 
 pub fn run(app: &mut App) -> AppResult<Option<Action>> {
@@ -112,6 +139,20 @@ fn handle_create_key(form: &mut CreateForm, key: KeyEvent) -> Option<Action> {
                 _ => "password".into(),
             };
         }
+        KeyCode::Char(' ') if form.field == 4 => {
+            if form.key_options.is_empty() {
+                form.error = "No SSH keys found in ~/.ssh.".into();
+            } else {
+                let next = form
+                    .key_options
+                    .iter()
+                    .position(|key| key == &form.values[4])
+                    .map(|index| (index + 1) % form.key_options.len())
+                    .unwrap_or(0);
+                form.values[4] = form.key_options[next].clone();
+                form.error.clear();
+            }
+        }
         KeyCode::Char(' ') if form.field == 6 => {
             form.values[6] = if form.values[6] == "yes" {
                 "no".into()
@@ -147,6 +188,11 @@ fn submit_create_form(form: &mut CreateForm) -> Option<Action> {
     };
     if matches!(authentication, Authentication::PrivateKey) && form.values[4].is_empty() {
         form.error = "Identity file is required for private-key auth.".into();
+        return None;
+    }
+    if matches!(authentication, Authentication::PrivateKey) && !Path::new(&form.values[4]).is_file()
+    {
+        form.error = "Selected identity file does not exist.".into();
         return None;
     }
     Some(Action::Create(ProfileDraft {
@@ -295,7 +341,11 @@ fn draw_create_form(frame: &mut Frame, form: &CreateForm) {
         })
         .collect::<Vec<_>>();
     let help = if form.error.is_empty() {
-        "Tab/Up/Down: field | Space: select | Enter: save | Esc: cancel"
+        if form.field == 4 {
+            "Space: select existing ~/.ssh key | Enter: save | Esc: cancel"
+        } else {
+            "Tab/Up/Down: field | Space: select | Enter: save | Esc: cancel"
+        }
     } else {
         form.error.as_str()
     };
