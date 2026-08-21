@@ -50,6 +50,10 @@ cargo run -- sftp production rmdir /tmp/releases
 
 From the TUI, select a profile and press `s` to open the remote browser. Use the arrow keys or `j/k` to navigate, `Enter` to open a directory, `Backspace` to go up, `d` to download the selected file, and `q` to return.
 
+## Creating connections from the TUI
+
+Press `n` in the connection list to open the new connection form. Navigate with `Tab` or the arrow keys, use `Space` to change authentication options, and press `Enter` to save. The password or key passphrase is requested after the form without echoing it.
+
 ## Local port forwarding
 
 Forward a local listener through a saved SSH profile:

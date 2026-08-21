@@ -217,6 +217,23 @@ async fn run_tui() -> AppResult<()> {
                 let options = ssh::options_for_profile(&profile, secret)?;
                 ssh::forward_local(options, bind_host, bind_port, target_host, target_port).await?;
             }
+            Action::Create(draft) => {
+                let port = draft
+                    .port
+                    .parse::<u16>()
+                    .map_err(|error| AppError::Profile(format!("invalid port: {error}")))?;
+                let profile = Profile {
+                    name: draft.name,
+                    host: draft.host,
+                    port,
+                    username: draft.username,
+                    identity_file: (!draft.identity_file.is_empty()).then_some(draft.identity_file),
+                    authentication: draft.authentication,
+                    accept_unknown_host_key: draft.accept_unknown_host_key,
+                };
+                let secret = prompt_secret(&profile.authentication)?;
+                save_profile(profile, secret)?;
+            }
         }
     }
 }
@@ -347,6 +364,27 @@ fn prompt_secret(authentication: &Authentication) -> AppResult<Option<String>> {
             }
         }
     }
+}
+
+fn save_profile(profile: Profile, secret: Option<String>) -> AppResult<()> {
+    let store = ProfileStore::new();
+    if store.load()?.iter().any(|saved| saved.name == profile.name) {
+        return Err(AppError::Profile(format!(
+            "profile already exists: {}",
+            profile.name
+        )));
+    }
+    if let Some(secret) = secret.as_deref() {
+        credentials::set(&profile.name, secret)
+            .map_err(|error| AppError::Credential(error.to_string()))?;
+    }
+    let name = profile.name.clone();
+    if let Err(error) = store.add(profile) {
+        let _ = credentials::delete(&name);
+        return Err(error);
+    }
+    println!("Saved profile: {name}");
+    Ok(())
 }
 
 fn read_profile_secret(profile: &Profile) -> AppResult<Option<String>> {

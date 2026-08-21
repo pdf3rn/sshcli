@@ -1,10 +1,20 @@
-use crate::profiles::Profile;
+use crate::profiles::{Authentication, Profile};
 
-#[derive(Clone)]
+pub struct ProfileDraft {
+    pub name: String,
+    pub host: String,
+    pub port: String,
+    pub username: String,
+    pub identity_file: String,
+    pub authentication: Authentication,
+    pub accept_unknown_host_key: bool,
+}
+
 pub enum Action {
     Connect(Profile),
     Sftp(Profile),
     Forward(Profile),
+    Create(ProfileDraft),
 }
 
 pub struct App {

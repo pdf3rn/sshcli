@@ -16,9 +16,34 @@ use ratatui::{
 };
 
 use crate::{
-    app::{Action, App},
+    app::{Action, App, ProfileDraft},
     error::AppResult,
+    profiles::Authentication,
 };
+
+struct CreateForm {
+    values: Vec<String>,
+    field: usize,
+    error: String,
+}
+
+impl Default for CreateForm {
+    fn default() -> Self {
+        Self {
+            values: vec![
+                String::new(),
+                String::new(),
+                "22".into(),
+                String::new(),
+                String::new(),
+                "password".into(),
+                "no".into(),
+            ],
+            field: 0,
+            error: String::new(),
+        }
+    }
+}
 
 pub fn run(app: &mut App) -> AppResult<Option<Action>> {
     enable_raw_mode()?;
@@ -39,18 +64,100 @@ fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
 ) -> AppResult<Option<Action>> {
+    let mut create_form = None;
     while !app.should_quit {
-        terminal.draw(|frame| draw(frame, app))?;
+        terminal.draw(|frame| {
+            if let Some(form) = create_form.as_ref() {
+                draw_create_form(frame, form);
+            } else {
+                draw(frame, app);
+            }
+        })?;
 
         if event::poll(Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {
-                if let Some(action) = handle_key(app, key) {
+                if let Some(form) = create_form.as_mut() {
+                    if let Some(action) = handle_create_key(form, key) {
+                        return Ok(Some(action));
+                    }
+                    if key.code == KeyCode::Esc {
+                        create_form = None;
+                    }
+                } else if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('n') {
+                    create_form = Some(CreateForm::default());
+                } else if let Some(action) = handle_key(app, key) {
                     return Ok(Some(action));
                 }
             }
         }
     }
     Ok(None)
+}
+
+fn handle_create_key(form: &mut CreateForm, key: KeyEvent) -> Option<Action> {
+    if key.kind != KeyEventKind::Press {
+        return None;
+    }
+    match key.code {
+        KeyCode::Tab | KeyCode::Down => {
+            form.field = (form.field + 1) % form.values.len();
+        }
+        KeyCode::BackTab | KeyCode::Up => {
+            form.field = form.field.checked_sub(1).unwrap_or(form.values.len() - 1);
+        }
+        KeyCode::Char(' ') if form.field == 5 => {
+            form.values[5] = match form.values[5].as_str() {
+                "password" => "private-key".into(),
+                "private-key" => "none".into(),
+                _ => "password".into(),
+            };
+        }
+        KeyCode::Char(' ') if form.field == 6 => {
+            form.values[6] = if form.values[6] == "yes" {
+                "no".into()
+            } else {
+                "yes".into()
+            };
+        }
+        KeyCode::Backspace if form.field != 5 && form.field != 6 => {
+            form.values[form.field].pop();
+        }
+        KeyCode::Char(character) if form.field != 5 && form.field != 6 => {
+            form.values[form.field].push(character);
+        }
+        KeyCode::Enter => return submit_create_form(form),
+        _ => {}
+    }
+    None
+}
+
+fn submit_create_form(form: &mut CreateForm) -> Option<Action> {
+    if form.values[0].is_empty() || form.values[1].is_empty() || form.values[3].is_empty() {
+        form.error = "Name, host and user are required.".into();
+        return None;
+    }
+    if form.values[2].parse::<u16>().is_err() {
+        form.error = "Port must be a number between 1 and 65535.".into();
+        return None;
+    }
+    let authentication = match form.values[5].as_str() {
+        "private-key" => Authentication::PrivateKey,
+        "none" => Authentication::None,
+        _ => Authentication::Password,
+    };
+    if matches!(authentication, Authentication::PrivateKey) && form.values[4].is_empty() {
+        form.error = "Identity file is required for private-key auth.".into();
+        return None;
+    }
+    Some(Action::Create(ProfileDraft {
+        name: form.values[0].clone(),
+        host: form.values[1].clone(),
+        port: form.values[2].clone(),
+        username: form.values[3].clone(),
+        identity_file: form.values[4].clone(),
+        authentication,
+        accept_unknown_host_key: form.values[6] == "yes",
+    }))
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) -> Option<Action> {
@@ -151,4 +258,47 @@ fn draw(frame: &mut Frame, app: &App) {
     ]))
     .block(Block::default().borders(Borders::ALL));
     frame.render_widget(footer, outer[1]);
+}
+
+fn draw_create_form(frame: &mut Frame, form: &CreateForm) {
+    let area = frame.area();
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" New Connection ");
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let labels = [
+        "Name",
+        "Host",
+        "Port",
+        "User",
+        "Identity file",
+        "Authentication",
+        "Accept unknown host key",
+    ];
+    let lines = labels
+        .iter()
+        .enumerate()
+        .map(|(index, label)| {
+            let style = if index == form.field {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            Line::from(vec![
+                Span::styled(format!("{label:<24}"), style),
+                Span::styled(form.values[index].as_str(), style),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let help = if form.error.is_empty() {
+        "Tab/Up/Down: field | Space: select | Enter: save | Esc: cancel"
+    } else {
+        form.error.as_str()
+    };
+    let content = Paragraph::new(lines).block(Block::default().title(help));
+    frame.render_widget(content, inner);
 }
