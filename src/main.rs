@@ -57,6 +57,18 @@ enum Command {
         #[command(subcommand)]
         command: SftpCommand,
     },
+    /// Forward a local TCP port through a saved SSH profile.
+    Forward {
+        profile: String,
+        #[arg(long, default_value = "127.0.0.1")]
+        bind_host: String,
+        #[arg(long)]
+        bind_port: u16,
+        #[arg(long)]
+        target_host: String,
+        #[arg(long)]
+        target_port: u16,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -169,6 +181,13 @@ async fn main() -> AppResult<()> {
         }
         Some(Command::Profile { command }) => handle_profile_command(command).await,
         Some(Command::Sftp { profile, command }) => handle_sftp_command(profile, command).await,
+        Some(Command::Forward {
+            profile,
+            bind_host,
+            bind_port,
+            target_host,
+            target_port,
+        }) => handle_forward_command(profile, bind_host, bind_port, target_host, target_port).await,
         None => run_tui().await,
     }
 }
@@ -287,6 +306,24 @@ async fn handle_sftp_command(profile_name: String, command: SftpCommand) -> AppR
         SftpCommand::Mkdir { path } => sftp::Operation::MakeDir { path },
     };
     sftp::execute(session, operation).await
+}
+
+async fn handle_forward_command(
+    profile_name: String,
+    bind_host: String,
+    bind_port: u16,
+    target_host: String,
+    target_port: u16,
+) -> AppResult<()> {
+    let store = ProfileStore::new();
+    let profile = store
+        .load()?
+        .into_iter()
+        .find(|profile| profile.name == profile_name)
+        .ok_or_else(|| AppError::Profile(format!("profile not found: {profile_name}")))?;
+    let secret = read_profile_secret(&profile)?;
+    let options = ssh::options_for_profile(&profile, secret)?;
+    ssh::forward_local(options, bind_host, bind_port, target_host, target_port).await
 }
 
 fn prompt_secret(authentication: &Authentication) -> AppResult<Option<String>> {

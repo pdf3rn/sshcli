@@ -3,6 +3,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use russh::{client, ChannelMsg};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 
 use crate::{
     error::{AppError, AppResult},
@@ -86,6 +87,50 @@ pub async fn open_sftp(options: ConnectionOptions) -> AppResult<russh_sftp::clie
     russh_sftp::client::SftpSession::new(channel.into_stream())
         .await
         .map_err(|error| AppError::Sftp(error.to_string()))
+}
+
+pub async fn forward_local(
+    options: ConnectionOptions,
+    bind_host: String,
+    bind_port: u16,
+    target_host: String,
+    target_port: u16,
+) -> AppResult<()> {
+    let listener = TcpListener::bind((bind_host.as_str(), bind_port)).await?;
+    let local_address = listener.local_addr()?;
+    println!("Forwarding {local_address} -> {target_host}:{target_port}. Press Ctrl-C to stop.");
+    let session = authenticate(options).await?;
+
+    loop {
+        tokio::select! {
+            connection = listener.accept() => {
+                let (socket, origin) = connection?;
+                forward_connection(&session, socket, origin, &target_host, target_port).await?;
+            }
+            _ = tokio::signal::ctrl_c() => break,
+        }
+    }
+    Ok(())
+}
+
+async fn forward_connection(
+    session: &client::Handle<ClientHandler>,
+    mut socket: TcpStream,
+    origin: std::net::SocketAddr,
+    target_host: &str,
+    target_port: u16,
+) -> AppResult<()> {
+    let channel = session
+        .channel_open_direct_tcpip(
+            target_host,
+            u32::from(target_port),
+            origin.ip().to_string(),
+            u32::from(origin.port()),
+        )
+        .await?;
+    let mut remote = channel.into_stream();
+    tokio::io::copy_bidirectional(&mut socket, &mut remote).await?;
+    Ok(())
 }
 
 async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<ClientHandler>> {

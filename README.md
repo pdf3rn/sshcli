@@ -50,6 +50,20 @@ cargo run -- sftp production rmdir /tmp/releases
 
 From the TUI, select a profile and press `s` to open the remote browser. Use the arrow keys or `j/k` to navigate, `Enter` to open a directory, `Backspace` to go up, `d` to download the selected file, and `q` to return.
 
+## Local port forwarding
+
+Forward a local listener through a saved SSH profile:
+
+```bash
+cargo run -- forward production \
+  --bind-host 127.0.0.1 \
+  --bind-port 8080 \
+  --target-host 127.0.0.1 \
+  --target-port 80
+```
+
+The process remains in the foreground and stops cleanly with `Ctrl-C`. Remote and dynamic forwarding are planned extensions.
+
 ## Direct SSH session
 
 Use a private key and explicitly accept the server key while `known_hosts` integration is being built:
