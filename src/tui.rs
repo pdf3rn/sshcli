@@ -61,7 +61,7 @@ fn handle_key(app: &mut App, key: KeyEvent) {
             app.status = "Profile creation will be available in Phase 3.".into();
         }
         KeyCode::Enter => {
-            app.status = "SSH connections will be available in Phase 2.".into();
+            app.status = "Use: sshcli connect <host> --user <user> --identity-file <key>".into();
         }
         _ => {}
     }
@@ -109,7 +109,7 @@ fn draw(frame: &mut Frame, app: &App) {
         Line::from("A cross-platform SSH client for the terminal."),
         Line::from(""),
         Line::from("Phase 1: TUI foundation"),
-        Line::from("Phase 2: SSH interactive sessions"),
+        Line::from("Phase 2: SSH interactive sessions available via connect"),
         Line::from("Phase 3: profiles and secure credentials"),
     ])
     .block(Block::default().borders(Borders::ALL).title(" Workspace "));
