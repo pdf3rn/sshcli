@@ -4,6 +4,7 @@ use crate::profiles::Profile;
 pub enum Action {
     Connect(Profile),
     Sftp(Profile),
+    Forward(Profile),
 }
 
 pub struct App {

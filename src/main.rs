@@ -211,6 +211,12 @@ async fn run_tui() -> AppResult<()> {
                 let session = ssh::open_sftp(options).await?;
                 sftp::browse(session).await?;
             }
+            Action::Forward(profile) => {
+                let secret = read_profile_secret(&profile)?;
+                let (bind_host, bind_port, target_host, target_port) = prompt_forward()?;
+                let options = ssh::options_for_profile(&profile, secret)?;
+                ssh::forward_local(options, bind_host, bind_port, target_host, target_port).await?;
+            }
         }
     }
 }
@@ -351,4 +357,35 @@ fn read_profile_secret(profile: &Profile) -> AppResult<Option<String>> {
             .map_err(|error| AppError::Credential(error.to_string())),
         Authentication::PrivateKey => Ok(credentials::get(&profile.name).ok()),
     }
+}
+
+fn prompt_forward() -> AppResult<(String, u16, String, u16)> {
+    let bind_host = prompt_line("Bind host [127.0.0.1]: ")?;
+    let bind_port = prompt_line("Bind port: ")?
+        .parse::<u16>()
+        .map_err(|error| AppError::Profile(format!("invalid bind port: {error}")))?;
+    let target_host = prompt_line("Target host: ")?;
+    let target_port = prompt_line("Target port: ")?
+        .parse::<u16>()
+        .map_err(|error| AppError::Profile(format!("invalid target port: {error}")))?;
+    Ok((
+        if bind_host.is_empty() {
+            "127.0.0.1".into()
+        } else {
+            bind_host
+        },
+        bind_port,
+        target_host,
+        target_port,
+    ))
+}
+
+fn prompt_line(prompt: &str) -> AppResult<String> {
+    use std::io::{self, Write};
+
+    print!("{prompt}");
+    io::stdout().flush()?;
+    let mut value = String::new();
+    io::stdin().read_line(&mut value)?;
+    Ok(value.trim().into())
 }

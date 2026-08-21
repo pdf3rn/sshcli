@@ -77,6 +77,12 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Action> {
             }
             app.status = "No profile selected.".into();
         }
+        KeyCode::Char('f') => {
+            if let Some(profile) = app.selected_profile() {
+                return Some(Action::Forward(profile));
+            }
+            app.status = "No profile selected.".into();
+        }
         _ => {}
     }
     None
@@ -139,6 +145,8 @@ fn draw(frame: &mut Frame, app: &App) {
         Span::raw("connect  |  "),
         Span::styled(" s ", Style::default().fg(Color::Yellow)),
         Span::raw("sftp  |  "),
+        Span::styled(" f ", Style::default().fg(Color::Yellow)),
+        Span::raw("forward  |  "),
         Span::raw(app.status.as_str()),
     ]))
     .block(Block::default().borders(Borders::ALL));

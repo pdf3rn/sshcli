@@ -64,6 +64,8 @@ cargo run -- forward production \
 
 The process remains in the foreground and stops cleanly with `Ctrl-C`. Remote and dynamic forwarding are planned extensions.
 
+From the TUI, select a profile and press `f` to enter the same local forwarding flow interactively.
+
 ## Direct SSH session
 
 Use a private key and explicitly accept the server key while `known_hosts` integration is being built:
