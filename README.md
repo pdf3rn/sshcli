@@ -48,6 +48,8 @@ cargo run -- sftp production rm /tmp/release.tar.gz
 cargo run -- sftp production rmdir /tmp/releases
 ```
 
+From the TUI, select a profile and press `s` to open the remote browser. Use the arrow keys or `j/k` to navigate, `Enter` to open a directory, `Backspace` to go up, `d` to download the selected file, and `q` to return.
+
 ## Direct SSH session
 
 Use a private key and explicitly accept the server key while `known_hosts` integration is being built:

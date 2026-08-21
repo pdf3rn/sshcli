@@ -15,9 +15,12 @@ use ratatui::{
     Frame, Terminal,
 };
 
-use crate::{app::App, error::AppResult, profiles::Profile};
+use crate::{
+    app::{Action, App},
+    error::AppResult,
+};
 
-pub fn run(app: &mut App) -> AppResult<Option<Profile>> {
+pub fn run(app: &mut App) -> AppResult<Option<Action>> {
     enable_raw_mode()?;
     let mut output = stdout();
     execute!(output, EnterAlternateScreen)?;
@@ -35,14 +38,14 @@ pub fn run(app: &mut App) -> AppResult<Option<Profile>> {
 fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
-) -> AppResult<Option<Profile>> {
+) -> AppResult<Option<Action>> {
     while !app.should_quit {
         terminal.draw(|frame| draw(frame, app))?;
 
         if event::poll(Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {
-                if let Some(profile) = handle_key(app, key) {
-                    return Ok(Some(profile));
+                if let Some(action) = handle_key(app, key) {
+                    return Ok(Some(action));
                 }
             }
         }
@@ -50,7 +53,7 @@ fn event_loop(
     Ok(None)
 }
 
-fn handle_key(app: &mut App, key: KeyEvent) -> Option<Profile> {
+fn handle_key(app: &mut App, key: KeyEvent) -> Option<Action> {
     if key.kind != KeyEventKind::Press {
         return None;
     }
@@ -64,7 +67,13 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Profile> {
         }
         KeyCode::Enter => {
             if let Some(profile) = app.selected_profile() {
-                return Some(profile);
+                return Some(Action::Connect(profile));
+            }
+            app.status = "No profile selected.".into();
+        }
+        KeyCode::Char('s') => {
+            if let Some(profile) = app.selected_profile() {
+                return Some(Action::Sftp(profile));
             }
             app.status = "No profile selected.".into();
         }
@@ -128,6 +137,8 @@ fn draw(frame: &mut Frame, app: &App) {
         Span::raw("new profile  "),
         Span::styled(" Enter ", Style::default().fg(Color::Yellow)),
         Span::raw("connect  |  "),
+        Span::styled(" s ", Style::default().fg(Color::Yellow)),
+        Span::raw("sftp  |  "),
         Span::raw(app.status.as_str()),
     ]))
     .block(Block::default().borders(Borders::ALL));

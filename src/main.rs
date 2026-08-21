@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    app::App,
+    app::{Action, App},
     error::{AppError, AppResult},
     profiles::{Authentication, Profile, ProfileStore},
 };
@@ -178,11 +178,21 @@ async fn run_tui() -> AppResult<()> {
     loop {
         let mut app = App::new(store.load()?);
         let selected = tui::run(&mut app)?;
-        let Some(profile) = selected else {
+        let Some(action) = selected else {
             return Ok(());
         };
-        let secret = read_profile_secret(&profile)?;
-        ssh::connect_profile(profile, secret).await?;
+        match action {
+            Action::Connect(profile) => {
+                let secret = read_profile_secret(&profile)?;
+                ssh::connect_profile(profile, secret).await?;
+            }
+            Action::Sftp(profile) => {
+                let secret = read_profile_secret(&profile)?;
+                let options = ssh::options_for_profile(&profile, secret)?;
+                let session = ssh::open_sftp(options).await?;
+                sftp::browse(session).await?;
+            }
+        }
     }
 }
 

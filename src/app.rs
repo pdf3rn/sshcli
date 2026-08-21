@@ -1,5 +1,11 @@
 use crate::profiles::Profile;
 
+#[derive(Clone)]
+pub enum Action {
+    Connect(Profile),
+    Sftp(Profile),
+}
+
 pub struct App {
     pub should_quit: bool,
     pub selected_profile: usize,
