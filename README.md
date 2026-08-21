@@ -60,12 +60,16 @@ Connection list:
 - `s`: open the SFTP browser.
 - `f`: start local forwarding.
 - `d`: delete the selected profile (press twice to confirm).
+- `x`: close the background session of the selected profile.
 - `q` or `Esc`: quit.
 
 SSH session:
 
-- The session runs as a real terminal passthrough: colors, full-screen programs (vim, htop) and resize work correctly.
-- `Ctrl+Q` detaches and returns to the connection list.
+- The session runs as a real terminal passthrough without the alternate screen: colors, full-screen programs (vim, htop), native scrollback, bracketed paste, and mouse forwarding work correctly.
+- `Ctrl+Q` detaches the session and returns to the connection list; the session keeps running in the background (marked with a green dot). Press `Enter` on it again to reattach, or `x` to close it.
+- Set `SSHCLI_DETACH_KEY` to change the detach key (for example `ctrl-t`) or `none` to disable it.
+- On connection failures, sshcli offers an interactive reconnect prompt.
+- Keepalives are sent every 30 seconds so idle sessions survive NAT timeouts.
 
 ## Creating connections from the TUI
 

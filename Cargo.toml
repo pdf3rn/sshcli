@@ -10,7 +10,8 @@ clap = { version = "4.5", features = ["derive"] }
 directories = "6.0"
 keyring = "3.6"
 ratatui = "0.29"
-crossterm = { version = "0.28", features = ["event-stream"] }
+crossterm = { version = "0.28", features = ["bracketed-paste", "event-stream"] }
+futures-core = "0.3"
 rpassword = "7.4"
 russh = "0.54"
 russh-sftp = "2.4"

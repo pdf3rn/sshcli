@@ -15,6 +15,7 @@ pub enum Action {
     Sftp(Profile),
     Forward(Profile),
     Delete(Profile),
+    CloseSession(Profile),
     Create(ProfileDraft),
 }
 
@@ -23,28 +24,34 @@ pub struct App {
     pub selected_profile: usize,
     pub status: String,
     pub profiles: Vec<Profile>,
+    pub active_sessions: Vec<String>,
     pub delete_confirmation: Option<String>,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self::new(Vec::new())
+        Self::new(Vec::new(), &[])
     }
 }
 
 impl App {
-    pub fn new(profiles: Vec<Profile>) -> Self {
+    pub fn new(profiles: Vec<Profile>, active_sessions: &[String]) -> Self {
         Self {
             should_quit: false,
             selected_profile: 0,
             status: if profiles.is_empty() {
-                "No profiles. Use: sshcli profile add <name>".into()
+                "No profiles. Press n to create one.".into()
             } else {
                 "Select a profile and press Enter to connect.".into()
             },
             profiles,
+            active_sessions: active_sessions.to_vec(),
             delete_confirmation: None,
         }
+    }
+
+    pub fn is_active(&self, name: &str) -> bool {
+        self.active_sessions.iter().any(|session| session == name)
     }
 
     pub fn quit(&mut self) {

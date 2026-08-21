@@ -2114,6 +2114,7 @@ dependencies = [
  "clap",
  "crossterm",
  "directories",
+ "futures-core",
  "keyring",
  "ratatui",
  "rpassword",

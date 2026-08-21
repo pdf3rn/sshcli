@@ -6,10 +6,14 @@ use std::{
 };
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
+    event::{
+        self, DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEvent,
+        KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use futures_core::stream::Stream as _;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -18,6 +22,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
     Frame, Terminal,
 };
+use std::pin::Pin;
 
 use crate::{
     app::{Action, App, ProfileDraft},
@@ -95,13 +100,31 @@ pub fn run(app: &mut App) -> AppResult<Option<Action>> {
     result
 }
 
-pub async fn run_shell(mut channel: russh::Channel<russh::client::Msg>) -> AppResult<()> {
-    enable_raw_mode()?;
+pub async fn run_shell(
+    channel: &mut russh::Channel<russh::client::Msg>,
+    label: &str,
+) -> AppResult<bool> {
+    const DIM: &str = "\x1b[2m";
+    const RESET: &str = "\x1b[0m";
+    let detach_hint = match detach_key() {
+        Some(_) => "Ctrl+Q detach".to_string(),
+        None => "detach disabled".to_string(),
+    };
     let mut output = stdout();
-    execute!(output, EnterAlternateScreen)?;
-    let result = shell_passthrough(&mut output, &mut channel).await;
+    enable_raw_mode()?;
+    execute!(output, EnableBracketedPaste)?;
+    write!(
+        output,
+        "\r\n{DIM}── sshcli · {label} · {detach_hint} ──{RESET}\r\n\r\n"
+    )?;
+    output.flush()?;
+
+    let result = shell_passthrough(&mut output, channel).await;
     disable_raw_mode()?;
-    execute!(output, LeaveAlternateScreen)?;
+    execute!(output, DisableBracketedPaste)?;
+    if matches!(&result, Ok(false)) {
+        write!(output, "\r\n{DIM}[sshcli] connection closed{RESET}\r\n")?;
+    }
     output.flush()?;
     result
 }
@@ -109,9 +132,8 @@ pub async fn run_shell(mut channel: russh::Channel<russh::client::Msg>) -> AppRe
 async fn shell_passthrough(
     output: &mut io::Stdout,
     channel: &mut russh::Channel<russh::client::Msg>,
-) -> AppResult<()> {
-    let mut ticker = tokio::time::interval(Duration::from_millis(15));
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+) -> AppResult<bool> {
+    let mut events = EventStream::new();
     loop {
         tokio::select! {
             message = channel.wait() => match message {
@@ -120,45 +142,94 @@ async fn shell_passthrough(
                     output.write_all(&data)?;
                     output.flush()?;
                 }
-                Some(russh::ChannelMsg::Eof) | Some(russh::ChannelMsg::Close) | None => break,
+                Some(russh::ChannelMsg::Eof) | Some(russh::ChannelMsg::Close) | None => {
+                    return Ok(false);
+                }
                 _ => {}
             },
-            _ = ticker.tick() => {
-                while event::poll(Duration::from_millis(0))? {
-                    match event::read()? {
-                        Event::Key(key) if key.kind == KeyEventKind::Press => {
-                            if key.modifiers.contains(KeyModifiers::CONTROL)
-                                && matches!(key.code, KeyCode::Char('q') | KeyCode::Char('Q'))
-                            {
-                                return Ok(());
-                            }
-                            if let Some(bytes) = key_bytes(key) {
-                                channel.data(bytes.as_slice()).await?;
-                            }
-                        }
-                        Event::Resize(columns, rows) => {
-                            channel
-                                .window_change(u32::from(columns), u32::from(rows), 0, 0)
-                                .await?;
-                        }
-                        _ => {}
+            maybe_event = next_event(&mut events) => match maybe_event {
+                Some(Ok(event)) => {
+                    let detached = forward_event(output, channel, event).await?;
+                    if detached {
+                        return Ok(true);
                     }
+                }
+                _ => {}
+            },
+        }
+    }
+}
+
+fn next_event(
+    events: &mut EventStream,
+) -> impl std::future::Future<Output = Option<io::Result<Event>>> + '_ {
+    std::future::poll_fn(move |context| Pin::new(&mut *events).poll_next(context))
+}
+
+async fn forward_event(
+    output: &mut io::Stdout,
+    channel: &mut russh::Channel<russh::client::Msg>,
+    event: Event,
+) -> AppResult<bool> {
+    match event {
+        Event::Resize(columns, rows) => {
+            channel
+                .window_change(u32::from(columns), u32::from(rows), 0, 0)
+                .await?;
+        }
+        Event::Key(key) => {
+            if key.kind == KeyEventKind::Press {
+                if is_detach_key(&key) {
+                    return Ok(true);
+                }
+                if let Some(bytes) = key_bytes(key) {
+                    channel.data(bytes.as_slice()).await?;
                 }
             }
         }
-    }
-    Ok(())
-}
-
-fn key_bytes(key: KeyEvent) -> Option<Vec<u8>> {
-    if key.modifiers.contains(KeyModifiers::CONTROL) {
-        if let KeyCode::Char(character) = key.code {
-            let byte = (character.to_ascii_lowercase() as u8).wrapping_sub(b'a' - 1);
-            return Some(vec![byte]);
+        Event::Paste(text) => {
+            if !text.is_empty() {
+                let mut bytes = b"\x1b[200~".to_vec();
+                bytes.extend_from_slice(text.as_bytes());
+                bytes.extend_from_slice(b"\x1b[201~");
+                channel.data(bytes.as_slice()).await?;
+            }
+        }
+        Event::Mouse(mouse) => {
+            if let Some(bytes) = mouse_bytes(mouse) {
+                channel.data(bytes.as_slice()).await?;
+            }
+        }
+        Event::FocusGained | Event::FocusLost => {
+            let _ = output;
         }
     }
-    Some(match key.code {
-        KeyCode::Char(character) => character.to_string().into_bytes(),
+    Ok(false)
+}
+
+fn detach_key() -> Option<(KeyModifiers, KeyCode)> {
+    match std::env::var("SSHCLI_DETACH_KEY").as_deref() {
+        Ok("none") => None,
+        Ok(key) if key.starts_with("ctrl-") => {
+            let character = key.trim_start_matches("ctrl-").chars().next()?;
+            Some((KeyModifiers::CONTROL, KeyCode::Char(character)))
+        }
+        _ => Some((KeyModifiers::CONTROL, KeyCode::Char('q'))),
+    }
+}
+
+fn is_detach_key(key: &KeyEvent) -> bool {
+    detach_key()
+        .map(|(modifiers, code)| key.modifiers.contains(modifiers) && key.code == code)
+        .unwrap_or(false)
+}
+
+fn control_byte(character: char) -> u8 {
+    (character.to_ascii_uppercase() as u8).wrapping_sub(b'A' - 1)
+}
+
+fn plain_sequence(code: KeyCode) -> Option<Vec<u8>> {
+    Some(match code {
         KeyCode::Enter => vec![b'\r'],
         KeyCode::Tab => vec![b'\t'],
         KeyCode::Backspace => vec![0x7f],
@@ -172,8 +243,84 @@ fn key_bytes(key: KeyEvent) -> Option<Vec<u8>> {
         KeyCode::PageUp => b"\x1b[5~".to_vec(),
         KeyCode::PageDown => b"\x1b[6~".to_vec(),
         KeyCode::Esc => vec![0x1b],
+        KeyCode::F(number) => match number {
+            1 => b"\x1bOP".to_vec(),
+            2 => b"\x1bOQ".to_vec(),
+            3 => b"\x1bOR".to_vec(),
+            4 => b"\x1bOS".to_vec(),
+            5 => b"\x1b[15~".to_vec(),
+            6 => b"\x1b[17~".to_vec(),
+            7 => b"\x1b[18~".to_vec(),
+            8 => b"\x1b[19~".to_vec(),
+            9 => b"\x1b[20~".to_vec(),
+            10 => b"\x1b[21~".to_vec(),
+            11 => b"\x1b[23~".to_vec(),
+            12 => b"\x1b[24~".to_vec(),
+            _ => return None,
+        },
         _ => return None,
     })
+}
+
+fn key_bytes(key: KeyEvent) -> Option<Vec<u8>> {
+    if key
+        .modifiers
+        .contains(KeyModifiers::CONTROL | KeyModifiers::ALT)
+    {
+        if let KeyCode::Char(character) = key.code {
+            return Some(vec![0x1b, control_byte(character)]);
+        }
+    }
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        if let KeyCode::Char(character) = key.code {
+            return Some(vec![control_byte(character)]);
+        }
+        return None;
+    }
+    if key.modifiers.contains(KeyModifiers::ALT) {
+        let payload = match key.code {
+            KeyCode::Char(character) => character.to_string().into_bytes(),
+            other => plain_sequence(other)?,
+        };
+        let mut bytes = vec![0x1b];
+        bytes.extend(payload);
+        return Some(bytes);
+    }
+    match key.code {
+        KeyCode::Char(character) => Some(character.to_string().into_bytes()),
+        other => plain_sequence(other),
+    }
+}
+
+fn mouse_bytes(mouse: MouseEvent) -> Option<Vec<u8>> {
+    use MouseEventKind::*;
+    let (code, suffix) = match mouse.kind {
+        Down(button) => (button_code(button, false), 'M'),
+        Drag(button) => (button_code(button, true), 'M'),
+        Up(_) => (0, 'm'),
+        ScrollUp => (64, 'M'),
+        ScrollDown => (65, 'M'),
+        ScrollLeft => (66, 'M'),
+        ScrollRight => (67, 'M'),
+        Moved => return None,
+    };
+    Some(
+        format!(
+            "\x1b[<{code};{};{}{suffix}",
+            u32::from(mouse.column) + 1,
+            u32::from(mouse.row) + 1
+        )
+        .into_bytes(),
+    )
+}
+
+fn button_code(button: MouseButton, drag: bool) -> u8 {
+    let base = match button {
+        MouseButton::Left => 0,
+        MouseButton::Middle => 1,
+        MouseButton::Right => 2,
+    };
+    base + u8::from(drag) * 32
 }
 
 fn event_loop(
@@ -329,6 +476,16 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Action> {
             }
             app.status = "No profile selected.".into();
         }
+        KeyCode::Char('x') => {
+            if let Some(profile) = app.selected_profile() {
+                if app.is_active(&profile.name) {
+                    return Some(Action::CloseSession(profile));
+                }
+                app.status = "No live session for this profile.".into();
+            } else {
+                app.status = "No profile selected.".into();
+            }
+        }
         KeyCode::Char('d') => {
             if let Some(profile) = app.selected_profile() {
                 if app.delete_confirmation.as_deref() == Some(profile.name.as_str()) {
@@ -382,13 +539,20 @@ fn draw(frame: &mut Frame, app: &App) {
         .profiles
         .iter()
         .map(|profile| {
+            let active = app.is_active(&profile.name);
             ListItem::new(vec![
-                Line::from(Span::styled(
-                    format!("  {}", profile.name),
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                )),
+                Line::from(vec![
+                    Span::styled(
+                        if active { "● " } else { "  " },
+                        Style::default().fg(Color::Green),
+                    ),
+                    Span::styled(
+                        profile.name.as_str(),
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]),
                 Line::from(Span::styled(
                     format!("  {}@{}:{}", profile.username, profile.host, profile.port),
                     Style::default().fg(MUTED),
@@ -406,12 +570,16 @@ fn draw(frame: &mut Frame, app: &App) {
     frame.render_stateful_widget(profile_list, columns[0], &mut state);
 
     let detail_lines = if let Some(profile) = app.profiles.get(app.selected_profile) {
-        vec![
+        let active = app.is_active(&profile.name);
+        let mut lines = vec![
             Line::from(Span::styled(
-                &profile.name,
+                profile.name.as_str(),
                 Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
             )),
-            Line::from(Span::styled("READY", Style::default().fg(Color::Green))),
+            Line::from(Span::styled(
+                if active { "LIVE SESSION" } else { "READY" },
+                Style::default().fg(Color::Green),
+            )),
             Line::from(""),
             Line::from(Span::styled("Endpoint", Style::default().fg(MUTED))),
             Line::from(format!("{}:{}", profile.host, profile.port)),
@@ -419,14 +587,28 @@ fn draw(frame: &mut Frame, app: &App) {
             Line::from(profile.username.as_str()),
             Line::from(""),
             Line::from(Span::styled("Enter", Style::default().fg(Color::Yellow))),
-            Line::from("open SSH session"),
+            if active {
+                Line::from("reattach to session")
+            } else {
+                Line::from("open SSH session")
+            },
+        ];
+        if active {
+            lines.push(Line::from(Span::styled(
+                "x",
+                Style::default().fg(Color::Yellow),
+            )));
+            lines.push(Line::from("close background session"));
+        }
+        lines.extend([
             Line::from(Span::styled("s", Style::default().fg(Color::Yellow))),
             Line::from("browse files with SFTP"),
             Line::from(Span::styled("f", Style::default().fg(Color::Yellow))),
             Line::from("start local forwarding"),
             Line::from(Span::styled("d", Style::default().fg(Color::Yellow))),
             Line::from("delete this connection"),
-        ]
+        ]);
+        lines
     } else {
         vec![
             Line::from(Span::styled(
@@ -457,6 +639,8 @@ fn draw(frame: &mut Frame, app: &App) {
         key_hint("f", "forward"),
         Span::raw("  "),
         key_hint("d", "delete"),
+        Span::raw("  "),
+        key_hint("x", "close"),
         Span::raw("   "),
         Span::styled(app.status.as_str(), Style::default().fg(MUTED)),
     ]))

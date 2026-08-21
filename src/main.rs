@@ -192,22 +192,39 @@ async fn main() -> AppResult<()> {
     }
 }
 
+type LiveSession = (String, russh::Channel<russh::client::Msg>);
+
 async fn run_tui() -> AppResult<()> {
     let store = ProfileStore::new();
+    let mut sessions: Vec<LiveSession> = Vec::new();
     loop {
-        let mut app = App::new(store.load()?);
+        let mut profiles = store.load()?;
+        sessions.retain(|(name, _)| profiles.iter().any(|profile| profile.name == *name));
+        let active = sessions
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+        let mut app = App::new(profiles.split_off(0), &active);
         let selected = tui::run(&mut app)?;
         let Some(action) = selected else {
             return Ok(());
         };
         match action {
             Action::Connect(profile) => {
-                let secret = read_profile_secret(&profile)?;
-                let options = ssh::options_for_profile(&profile, secret)?;
-                let channel = ssh::open_shell(options).await?;
-                tui::run_shell(channel).await?;
+                let name = profile.name.clone();
+                let existing = sessions
+                    .iter()
+                    .position(|(session, _)| *session == name)
+                    .map(|index| sessions.remove(index).1);
+                if let Some(channel) = attach_session(profile, existing).await? {
+                    sessions.push((name, channel));
+                }
+            }
+            Action::CloseSession(profile) => {
+                sessions.retain(|(name, _)| *name != profile.name);
             }
             Action::Delete(profile) => {
+                sessions.retain(|(name, _)| *name != profile.name);
                 store.remove(&profile.name)?;
                 let _ = credentials::delete(&profile.name);
             }
@@ -242,6 +259,61 @@ async fn run_tui() -> AppResult<()> {
             }
         }
     }
+}
+
+async fn attach_session(
+    profile: Profile,
+    existing: Option<russh::Channel<russh::client::Msg>>,
+) -> AppResult<Option<russh::Channel<russh::client::Msg>>> {
+    let label = format!("{}@{}", profile.username, profile.host);
+    let mut current = existing;
+    loop {
+        if current.is_none() {
+            current = loop {
+                let secret = read_profile_secret(&profile)?;
+                let options = match ssh::options_for_profile(&profile, secret) {
+                    Ok(options) => options,
+                    Err(error) => {
+                        println!("[sshcli] {error}");
+                        return Ok(None);
+                    }
+                };
+                match ssh::open_shell(options).await {
+                    Ok(channel) => break Some(channel),
+                    Err(error) => {
+                        println!("[sshcli] {error}");
+                        if !confirm("Reconnect?") {
+                            return Ok(None);
+                        }
+                    }
+                }
+            };
+        }
+        let Some(mut channel) = current.take() else {
+            return Ok(None);
+        };
+        match tui::run_shell(&mut channel, &label).await {
+            Ok(detached) => {
+                return Ok(detached.then_some(channel));
+            }
+            Err(error) => {
+                println!("\r\n[sshcli] {error}");
+                if !confirm("Reconnect?") {
+                    return Ok(None);
+                }
+            }
+        }
+    }
+}
+
+fn confirm(prompt: &str) -> bool {
+    use std::io::{self, Write};
+
+    print!("{prompt} ");
+    let _ = io::stdout().flush();
+    let mut line = String::new();
+    let _ = io::stdin().read_line(&mut line);
+    matches!(line.trim().to_lowercase().as_str(), "y" | "yes")
 }
 
 async fn handle_profile_command(command: ProfileCommand) -> AppResult<()> {
