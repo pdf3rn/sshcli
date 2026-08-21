@@ -3,6 +3,7 @@ mod config;
 mod credentials;
 mod error;
 mod profiles;
+mod sftp;
 mod ssh;
 mod tui;
 
@@ -50,6 +51,12 @@ enum Command {
         #[command(subcommand)]
         command: ProfileCommand,
     },
+    /// Run an SFTP operation using a saved profile.
+    Sftp {
+        profile: String,
+        #[command(subcommand)]
+        command: SftpCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -75,6 +82,33 @@ enum ProfileCommand {
     List,
     /// Remove a profile and its keyring secret.
     Remove { name: String },
+}
+
+#[derive(Debug, Subcommand)]
+enum SftpCommand {
+    /// List a remote directory.
+    Ls {
+        #[arg(default_value = ".")]
+        path: String,
+    },
+    /// Print the remote working directory.
+    Pwd,
+    /// Download a remote file.
+    Get {
+        remote: String,
+        local: std::path::PathBuf,
+    },
+    /// Upload a local file.
+    Put {
+        local: std::path::PathBuf,
+        remote: String,
+    },
+    /// Remove a remote file.
+    Rm { path: String },
+    /// Remove an empty remote directory.
+    Rmdir { path: String },
+    /// Create a remote directory.
+    Mkdir { path: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -134,6 +168,7 @@ async fn main() -> AppResult<()> {
             .await
         }
         Some(Command::Profile { command }) => handle_profile_command(command).await,
+        Some(Command::Sftp { profile, command }) => handle_sftp_command(profile, command).await,
         None => run_tui().await,
     }
 }
@@ -220,6 +255,28 @@ async fn handle_profile_command(command: ProfileCommand) -> AppResult<()> {
             Ok(())
         }
     }
+}
+
+async fn handle_sftp_command(profile_name: String, command: SftpCommand) -> AppResult<()> {
+    let store = ProfileStore::new();
+    let profile = store
+        .load()?
+        .into_iter()
+        .find(|profile| profile.name == profile_name)
+        .ok_or_else(|| AppError::Profile(format!("profile not found: {profile_name}")))?;
+    let secret = read_profile_secret(&profile)?;
+    let options = ssh::options_for_profile(&profile, secret)?;
+    let session = ssh::open_sftp(options).await?;
+    let operation = match command {
+        SftpCommand::Ls { path } => sftp::Operation::List { path },
+        SftpCommand::Pwd => sftp::Operation::PrintWorkingDirectory,
+        SftpCommand::Get { remote, local } => sftp::Operation::Get { remote, local },
+        SftpCommand::Put { local, remote } => sftp::Operation::Put { local, remote },
+        SftpCommand::Rm { path } => sftp::Operation::RemoveFile { path },
+        SftpCommand::Rmdir { path } => sftp::Operation::RemoveDir { path },
+        SftpCommand::Mkdir { path } => sftp::Operation::MakeDir { path },
+    };
+    sftp::execute(session, operation).await
 }
 
 fn prompt_secret(authentication: &Authentication) -> AppResult<Option<String>> {

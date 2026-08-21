@@ -39,7 +39,10 @@ pub enum Authentication {
     PrivateKey(Option<String>),
 }
 
-pub async fn connect_profile(profile: Profile, secret: Option<String>) -> AppResult<()> {
+pub fn options_for_profile(
+    profile: &Profile,
+    secret: Option<String>,
+) -> AppResult<ConnectionOptions> {
     let authentication = match &profile.authentication {
         ProfileAuthentication::None => Authentication::None,
         ProfileAuthentication::Password => Authentication::Password(secret.ok_or_else(|| {
@@ -48,18 +51,44 @@ pub async fn connect_profile(profile: Profile, secret: Option<String>) -> AppRes
         ProfileAuthentication::PrivateKey => Authentication::PrivateKey(secret),
     };
 
-    connect(ConnectionOptions {
-        host: profile.host,
+    Ok(ConnectionOptions {
+        host: profile.host.clone(),
         port: profile.port,
-        username: profile.username,
-        identity_file: profile.identity_file,
+        username: profile.username.clone(),
+        identity_file: profile.identity_file.clone(),
         accept_unknown_host_key: profile.accept_unknown_host_key,
         authentication,
     })
-    .await
+}
+
+pub async fn connect_profile(profile: Profile, secret: Option<String>) -> AppResult<()> {
+    connect(options_for_profile(&profile, secret)?).await
 }
 
 pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
+    let session = authenticate(options).await?;
+    let channel = session.channel_open_session().await?;
+    channel
+        .request_pty(true, "xterm-256color", 120, 40, 0, 0, &[])
+        .await?;
+    channel.request_shell(true).await?;
+
+    enable_raw_mode()?;
+    let result = run_terminal(channel).await;
+    disable_raw_mode()?;
+    result
+}
+
+pub async fn open_sftp(options: ConnectionOptions) -> AppResult<russh_sftp::client::SftpSession> {
+    let session = authenticate(options).await?;
+    let channel = session.channel_open_session().await?;
+    channel.request_subsystem(true, "sftp").await?;
+    russh_sftp::client::SftpSession::new(channel.into_stream())
+        .await
+        .map_err(|error| AppError::Sftp(error.to_string()))
+}
+
+async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<ClientHandler>> {
     let config = client::Config {
         inactivity_timeout: Some(Duration::from_secs(60 * 60)),
         ..Default::default()
@@ -107,17 +136,7 @@ pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
     if !authenticated.success() {
         return Err(crate::error::AppError::AuthenticationFailed);
     }
-
-    let channel = session.channel_open_session().await?;
-    channel
-        .request_pty(true, "xterm-256color", 120, 40, 0, 0, &[])
-        .await?;
-    channel.request_shell(true).await?;
-
-    enable_raw_mode()?;
-    let result = run_terminal(channel).await;
-    disable_raw_mode()?;
-    result
+    Ok(session)
 }
 
 async fn run_terminal(mut channel: russh::Channel<russh::client::Msg>) -> AppResult<()> {

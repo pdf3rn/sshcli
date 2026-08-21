@@ -14,6 +14,8 @@ pub enum AppError {
     Profile(String),
     #[error("credential error: {0}")]
     Credential(String),
+    #[error("sftp error: {0}")]
+    Sftp(String),
 }
 
 pub type AppResult<T> = Result<T, AppError>;

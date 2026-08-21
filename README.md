@@ -15,7 +15,7 @@ Phase 1 provides the TUI foundation and Phase 2 adds direct SSH sessions:
 - Private-key authentication through `russh`.
 - Explicit host-key acceptance for the current direct-connect path.
 
-SFTP and port forwarding are planned for later phases.
+Port forwarding is planned for the next phase.
 
 ## Profiles and credentials
 
@@ -33,6 +33,20 @@ cargo run -- profile remove production
 ```
 
 `profile add` prompts for secrets without echoing them. For an unencrypted private key, leave the passphrase prompt empty. The current `--accept-unknown-host-key` option is an explicit temporary measure until persistent `known_hosts` validation is implemented.
+
+## SFTP
+
+SFTP operations reuse a saved profile and never expose its credentials in command arguments:
+
+```bash
+cargo run -- sftp production pwd
+cargo run -- sftp production ls /var/log
+cargo run -- sftp production get /var/log/app.log ./app.log
+cargo run -- sftp production put ./release.tar.gz /tmp/release.tar.gz
+cargo run -- sftp production mkdir /tmp/releases
+cargo run -- sftp production rm /tmp/release.tar.gz
+cargo run -- sftp production rmdir /tmp/releases
+```
 
 ## Direct SSH session
 
