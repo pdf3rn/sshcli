@@ -78,14 +78,23 @@ pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
 
 pub async fn open_shell(
     options: ConnectionOptions,
-) -> AppResult<russh::ChannelStream<russh::client::Msg>> {
+) -> AppResult<russh::Channel<russh::client::Msg>> {
     let session = authenticate(options).await?;
     let channel = session.channel_open_session().await?;
+    let (columns, rows) = crossterm::terminal::size().unwrap_or((120, 40));
     channel
-        .request_pty(true, "xterm-256color", 120, 40, 0, 0, &[])
+        .request_pty(
+            true,
+            "xterm-256color",
+            u32::from(columns),
+            u32::from(rows),
+            0,
+            0,
+            &[],
+        )
         .await?;
     channel.request_shell(true).await?;
-    Ok(channel.into_stream())
+    Ok(channel)
 }
 
 pub async fn open_sftp(options: ConnectionOptions) -> AppResult<russh_sftp::client::SftpSession> {

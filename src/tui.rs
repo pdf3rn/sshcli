@@ -1,7 +1,7 @@
 use std::time::Duration;
 use std::{
     fs,
-    io::{self, stdout},
+    io::{self, stdout, Write},
     path::Path,
 };
 
@@ -15,10 +15,9 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
     Frame, Terminal,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{
     app::{Action, App, ProfileDraft},
@@ -96,57 +95,53 @@ pub fn run(app: &mut App) -> AppResult<Option<Action>> {
     result
 }
 
-pub async fn run_shell(
-    profile_name: String,
-    mut stream: russh::ChannelStream<russh::client::Msg>,
-) -> AppResult<()> {
+pub async fn run_shell(mut channel: russh::Channel<russh::client::Msg>) -> AppResult<()> {
     enable_raw_mode()?;
     let mut output = stdout();
     execute!(output, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(output);
-    let mut terminal = Terminal::new(backend)?;
-    let result = shell_event_loop(&mut terminal, &profile_name, &mut stream).await;
+    let result = shell_passthrough(&mut output, &mut channel).await;
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
+    execute!(output, LeaveAlternateScreen)?;
+    output.flush()?;
     result
 }
 
-async fn shell_event_loop(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    profile_name: &str,
-    stream: &mut russh::ChannelStream<russh::client::Msg>,
+async fn shell_passthrough(
+    output: &mut io::Stdout,
+    channel: &mut russh::Channel<russh::client::Msg>,
 ) -> AppResult<()> {
-    let mut buffer = [0_u8; 4096];
-    let mut transcript = String::new();
-
+    let mut ticker = tokio::time::interval(Duration::from_millis(15));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
-        terminal.draw(|frame| draw_shell(frame, profile_name, &transcript))?;
         tokio::select! {
-            read = stream.read(&mut buffer) => {
-                let count = read?;
-                if count == 0 {
-                    break;
+            message = channel.wait() => match message {
+                Some(russh::ChannelMsg::Data { data })
+                | Some(russh::ChannelMsg::ExtendedData { data, .. }) => {
+                    output.write_all(&data)?;
+                    output.flush()?;
                 }
-                transcript.push_str(&String::from_utf8_lossy(&buffer[..count]));
-                if transcript.len() > 32_000 {
-                    transcript.drain(..transcript.len() - 32_000);
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(40)) => {
+                Some(russh::ChannelMsg::Eof) | Some(russh::ChannelMsg::Close) | None => break,
+                _ => {}
+            },
+            _ = ticker.tick() => {
                 while event::poll(Duration::from_millis(0))? {
-                    if let Event::Key(key) = event::read()? {
-                        if key.kind != KeyEventKind::Press {
-                            continue;
+                    match event::read()? {
+                        Event::Key(key) if key.kind == KeyEventKind::Press => {
+                            if key.modifiers.contains(KeyModifiers::CONTROL)
+                                && matches!(key.code, KeyCode::Char('q') | KeyCode::Char('Q'))
+                            {
+                                return Ok(());
+                            }
+                            if let Some(bytes) = key_bytes(key) {
+                                channel.data(bytes.as_slice()).await?;
+                            }
                         }
-                        if key.modifiers.contains(KeyModifiers::CONTROL)
-                            && key.code == KeyCode::Char('q')
-                        {
-                            return Ok(());
+                        Event::Resize(columns, rows) => {
+                            channel
+                                .window_change(u32::from(columns), u32::from(rows), 0, 0)
+                                .await?;
                         }
-                        if let Some(bytes) = key_bytes(key) {
-                            stream.write_all(&bytes).await?;
-                        }
+                        _ => {}
                     }
                 }
             }
@@ -171,43 +166,14 @@ fn key_bytes(key: KeyEvent) -> Option<Vec<u8>> {
         KeyCode::Right => b"\x1b[C".to_vec(),
         KeyCode::Up => b"\x1b[A".to_vec(),
         KeyCode::Down => b"\x1b[B".to_vec(),
+        KeyCode::Home => b"\x1b[H".to_vec(),
+        KeyCode::End => b"\x1b[F".to_vec(),
+        KeyCode::Delete => b"\x1b[3~".to_vec(),
+        KeyCode::PageUp => b"\x1b[5~".to_vec(),
+        KeyCode::PageDown => b"\x1b[6~".to_vec(),
         KeyCode::Esc => vec![0x1b],
         _ => return None,
     })
-}
-
-fn draw_shell(frame: &mut Frame, profile_name: &str, transcript: &str) {
-    frame.render_widget(
-        Block::default().style(Style::default().bg(BACKGROUND)),
-        frame.area(),
-    );
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(32), Constraint::Min(0)])
-        .split(frame.area());
-    let sidebar = Paragraph::new(vec![
-        Line::from(Span::styled(
-            "SSHCLI",
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(""),
-        Line::from(Span::styled("CONNECTED", Style::default().fg(Color::Green))),
-        Line::from(format!("{profile_name}")),
-        Line::from(""),
-        Line::from(Span::styled("Ctrl+Q", Style::default().fg(Color::Yellow))),
-        Line::from(Span::styled(
-            "return to connections",
-            Style::default().fg(MUTED),
-        )),
-    ])
-    .style(Style::default().fg(Color::White).bg(SURFACE))
-    .block(panel(" Connection "));
-    frame.render_widget(sidebar, columns[0]);
-    let workspace = Paragraph::new(transcript)
-        .style(Style::default().fg(Color::White).bg(Color::Black))
-        .block(panel(" Workspace "))
-        .wrap(Wrap { trim: false });
-    frame.render_widget(workspace, columns[1]);
 }
 
 fn event_loop(
@@ -358,6 +324,17 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Action> {
             }
             app.status = "No profile selected.".into();
         }
+        KeyCode::Char('d') => {
+            if let Some(profile) = app.selected_profile() {
+                if app.delete_confirmation.as_deref() == Some(profile.name.as_str()) {
+                    return Some(Action::Delete(profile));
+                }
+                app.delete_confirmation = Some(profile.name.clone());
+                app.status = format!("Press d again to delete '{}'.", profile.name);
+            } else {
+                app.status = "No profile selected.".into();
+            }
+        }
         _ => {}
     }
     None
@@ -442,6 +419,8 @@ fn draw(frame: &mut Frame, app: &App) {
             Line::from("browse files with SFTP"),
             Line::from(Span::styled("f", Style::default().fg(Color::Yellow))),
             Line::from("start local forwarding"),
+            Line::from(Span::styled("d", Style::default().fg(Color::Yellow))),
+            Line::from("delete this connection"),
         ]
     } else {
         vec![
@@ -471,6 +450,8 @@ fn draw(frame: &mut Frame, app: &App) {
         key_hint("s", "sftp"),
         Span::raw("  "),
         key_hint("f", "forward"),
+        Span::raw("  "),
+        key_hint("d", "delete"),
         Span::raw("   "),
         Span::styled(app.status.as_str(), Style::default().fg(MUTED)),
     ]))

@@ -50,6 +50,23 @@ cargo run -- sftp production rmdir /tmp/releases
 
 From the TUI, select a profile and press `s` to open the remote browser. Use the arrow keys or `j/k` to navigate, `Enter` to open a directory, `Backspace` to go up, `d` to download the selected file, and `q` to return.
 
+## Keyboard shortcuts
+
+Connection list:
+
+- `j/k` or arrow keys: navigate.
+- `n`: open the new connection modal.
+- `Enter`: open an interactive SSH session.
+- `s`: open the SFTP browser.
+- `f`: start local forwarding.
+- `d`: delete the selected profile (press twice to confirm).
+- `q` or `Esc`: quit.
+
+SSH session:
+
+- The session runs as a real terminal passthrough: colors, full-screen programs (vim, htop) and resize work correctly.
+- `Ctrl+Q` detaches and returns to the connection list.
+
 ## Creating connections from the TUI
 
 Press `n` in the connection list to open the new connection form. Navigate with `Tab` or the arrow keys, use `Space` to change authentication options, and press `Enter` to save. On the `Identity file` field, `Space` cycles through existing private keys in `~/.ssh`; public keys are excluded. The password or key passphrase is requested after the form without echoing it.

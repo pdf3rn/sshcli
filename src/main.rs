@@ -203,10 +203,13 @@ async fn run_tui() -> AppResult<()> {
         match action {
             Action::Connect(profile) => {
                 let secret = read_profile_secret(&profile)?;
-                let profile_name = profile.name.clone();
                 let options = ssh::options_for_profile(&profile, secret)?;
-                let stream = ssh::open_shell(options).await?;
-                tui::run_shell(profile_name, stream).await?;
+                let channel = ssh::open_shell(options).await?;
+                tui::run_shell(channel).await?;
+            }
+            Action::Delete(profile) => {
+                store.remove(&profile.name)?;
+                let _ = credentials::delete(&profile.name);
             }
             Action::Sftp(profile) => {
                 let secret = read_profile_secret(&profile)?;

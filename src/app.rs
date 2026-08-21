@@ -14,6 +14,7 @@ pub enum Action {
     Connect(Profile),
     Sftp(Profile),
     Forward(Profile),
+    Delete(Profile),
     Create(ProfileDraft),
 }
 
@@ -22,6 +23,7 @@ pub struct App {
     pub selected_profile: usize,
     pub status: String,
     pub profiles: Vec<Profile>,
+    pub delete_confirmation: Option<String>,
 }
 
 impl Default for App {
@@ -41,6 +43,7 @@ impl App {
                 "Select a profile and press Enter to connect.".into()
             },
             profiles,
+            delete_confirmation: None,
         }
     }
 
@@ -49,12 +52,14 @@ impl App {
     }
 
     pub fn select_next(&mut self) {
+        self.delete_confirmation = None;
         if !self.profiles.is_empty() {
             self.selected_profile = (self.selected_profile + 1) % self.profiles.len();
         }
     }
 
     pub fn select_previous(&mut self) {
+        self.delete_confirmation = None;
         if !self.profiles.is_empty() {
             self.selected_profile = self
                 .selected_profile
