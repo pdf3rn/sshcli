@@ -4,7 +4,10 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use russh::{client, ChannelMsg};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 
-use crate::error::AppResult;
+use crate::{
+    error::{AppError, AppResult},
+    profiles::{Authentication as ProfileAuthentication, Profile},
+};
 
 struct ClientHandler {
     accept_unknown_host_key: bool,
@@ -27,6 +30,33 @@ pub struct ConnectionOptions {
     pub username: String,
     pub identity_file: Option<String>,
     pub accept_unknown_host_key: bool,
+    pub authentication: Authentication,
+}
+
+pub enum Authentication {
+    None,
+    Password(String),
+    PrivateKey(Option<String>),
+}
+
+pub async fn connect_profile(profile: Profile, secret: Option<String>) -> AppResult<()> {
+    let authentication = match &profile.authentication {
+        ProfileAuthentication::None => Authentication::None,
+        ProfileAuthentication::Password => Authentication::Password(secret.ok_or_else(|| {
+            AppError::Credential(format!("missing password for profile {}", profile.name))
+        })?),
+        ProfileAuthentication::PrivateKey => Authentication::PrivateKey(secret),
+    };
+
+    connect(ConnectionOptions {
+        host: profile.host,
+        port: profile.port,
+        username: profile.username,
+        identity_file: profile.identity_file,
+        accept_unknown_host_key: profile.accept_unknown_host_key,
+        authentication,
+    })
+    .await
 }
 
 pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
@@ -46,12 +76,25 @@ pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
 
     let key_path = options.identity_file.as_deref().map(Path::new);
     let key = match key_path {
-        Some(path) => Some(russh::keys::load_secret_key(path, None)?),
+        Some(path) => match &options.authentication {
+            Authentication::PrivateKey(passphrase) => {
+                Some(russh::keys::load_secret_key(path, passphrase.as_deref())?)
+            }
+            _ => None,
+        },
         None => None,
     };
 
-    let authenticated = match key {
-        Some(key) => {
+    let authenticated = match options.authentication {
+        Authentication::Password(password) => {
+            session
+                .authenticate_password(options.username, password)
+                .await?
+        }
+        Authentication::PrivateKey(_) => {
+            let key = key.ok_or_else(|| {
+                AppError::Profile("private-key authentication requires an identity file".into())
+            })?;
             session
                 .authenticate_publickey(
                     options.username,
@@ -59,7 +102,7 @@ pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
                 )
                 .await?
         }
-        None => session.authenticate_none(options.username).await?,
+        Authentication::None => session.authenticate_none(options.username).await?,
     };
     if !authenticated.success() {
         return Err(crate::error::AppError::AuthenticationFailed);

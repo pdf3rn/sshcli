@@ -1,22 +1,32 @@
+use crate::profiles::Profile;
+
 pub struct App {
     pub should_quit: bool,
     pub selected_profile: usize,
     pub status: String,
-    pub profiles: Vec<String>,
+    pub profiles: Vec<Profile>,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self {
-            should_quit: false,
-            selected_profile: 0,
-            status: "No profiles yet. Press n to add one in a future release.".into(),
-            profiles: vec!["No saved connections".into()],
-        }
+        Self::new(Vec::new())
     }
 }
 
 impl App {
+    pub fn new(profiles: Vec<Profile>) -> Self {
+        Self {
+            should_quit: false,
+            selected_profile: 0,
+            status: if profiles.is_empty() {
+                "No profiles. Use: sshcli profile add <name>".into()
+            } else {
+                "Select a profile and press Enter to connect.".into()
+            },
+            profiles,
+        }
+    }
+
     pub fn quit(&mut self) {
         self.should_quit = true;
     }
@@ -34,5 +44,9 @@ impl App {
                 .checked_sub(1)
                 .unwrap_or(self.profiles.len() - 1);
         }
+    }
+
+    pub fn selected_profile(&self) -> Option<Profile> {
+        self.profiles.get(self.selected_profile).cloned()
     }
 }

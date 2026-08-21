@@ -15,7 +15,24 @@ Phase 1 provides the TUI foundation and Phase 2 adds direct SSH sessions:
 - Private-key authentication through `russh`.
 - Explicit host-key acceptance for the current direct-connect path.
 
-Profiles, secure credentials, SFTP, and port forwarding are planned for later phases.
+SFTP and port forwarding are planned for later phases.
+
+## Profiles and credentials
+
+Profiles contain only connection metadata in the platform configuration directory. Passwords and key passphrases are stored through the native keyring using the `keyring` crate.
+
+```bash
+cargo run -- profile add production \
+  --host server.example.com \
+  --user deploy \
+  --identity-file ~/.ssh/id_ed25519 \
+  --accept-unknown-host-key
+
+cargo run -- profile list
+cargo run -- profile remove production
+```
+
+`profile add` prompts for secrets without echoing them. For an unencrypted private key, leave the passphrase prompt empty. The current `--accept-unknown-host-key` option is an explicit temporary measure until persistent `known_hosts` validation is implemented.
 
 ## Direct SSH session
 

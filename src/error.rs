@@ -10,6 +10,10 @@ pub enum AppError {
     Key(#[from] russh::keys::Error),
     #[error("ssh authentication failed")]
     AuthenticationFailed,
+    #[error("profile error: {0}")]
+    Profile(String),
+    #[error("credential error: {0}")]
+    Credential(String),
 }
 
 pub type AppResult<T> = Result<T, AppError>;

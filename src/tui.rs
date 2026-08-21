@@ -15,9 +15,9 @@ use ratatui::{
     Frame, Terminal,
 };
 
-use crate::{app::App, error::AppResult};
+use crate::{app::App, error::AppResult, profiles::Profile};
 
-pub fn run(app: &mut App) -> AppResult<()> {
+pub fn run(app: &mut App) -> AppResult<Option<Profile>> {
     enable_raw_mode()?;
     let mut output = stdout();
     execute!(output, EnterAlternateScreen)?;
@@ -35,22 +35,24 @@ pub fn run(app: &mut App) -> AppResult<()> {
 fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
-) -> AppResult<()> {
+) -> AppResult<Option<Profile>> {
     while !app.should_quit {
         terminal.draw(|frame| draw(frame, app))?;
 
         if event::poll(Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {
-                handle_key(app, key);
+                if let Some(profile) = handle_key(app, key) {
+                    return Ok(Some(profile));
+                }
             }
         }
     }
-    Ok(())
+    Ok(None)
 }
 
-fn handle_key(app: &mut App, key: KeyEvent) {
+fn handle_key(app: &mut App, key: KeyEvent) -> Option<Profile> {
     if key.kind != KeyEventKind::Press {
-        return;
+        return None;
     }
 
     match key.code {
@@ -58,13 +60,17 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Down | KeyCode::Char('j') => app.select_next(),
         KeyCode::Up | KeyCode::Char('k') => app.select_previous(),
         KeyCode::Char('n') => {
-            app.status = "Profile creation will be available in Phase 3.".into();
+            app.status = "Use: sshcli profile add <name> to create a profile.".into();
         }
         KeyCode::Enter => {
-            app.status = "Use: sshcli connect <host> --user <user> --identity-file <key>".into();
+            if let Some(profile) = app.selected_profile() {
+                return Some(profile);
+            }
+            app.status = "No profile selected.".into();
         }
         _ => {}
     }
+    None
 }
 
 fn draw(frame: &mut Frame, app: &App) {
@@ -80,7 +86,7 @@ fn draw(frame: &mut Frame, app: &App) {
     let items = app
         .profiles
         .iter()
-        .map(|profile| ListItem::new(profile.as_str()))
+        .map(|profile| ListItem::new(profile.name.as_str()))
         .collect::<Vec<_>>();
     let mut state = ListState::default();
     state.select(Some(app.selected_profile));
@@ -110,7 +116,7 @@ fn draw(frame: &mut Frame, app: &App) {
         Line::from(""),
         Line::from("Phase 1: TUI foundation"),
         Line::from("Phase 2: SSH interactive sessions available via connect"),
-        Line::from("Phase 3: profiles and secure credentials"),
+        Line::from("Phase 3: profiles and secure credentials available"),
     ])
     .block(Block::default().borders(Borders::ALL).title(" Workspace "));
     frame.render_widget(detail, columns[1]);

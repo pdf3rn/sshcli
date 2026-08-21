@@ -8,9 +8,13 @@ license = "MIT"
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 directories = "6.0"
+keyring = "3.6"
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
+rpassword = "7.4"
 russh = "0.54"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
 thiserror = "2.0"
 tokio = { version = "1.40", features = ["io-std", "io-util", "macros", "rt-multi-thread"] }
 tracing = "0.1"
