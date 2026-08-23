@@ -54,7 +54,12 @@ export default function HomeView({
 
   const renderCard = (profile: Profile) => (
     <li key={profile.name}>
-      <button type="button" className="recent-card" onClick={() => onConnect(profile.name)}>
+      <button
+        type="button"
+        className="recent-card"
+        disabled={connecting}
+        onClick={() => onConnect(profile.name)}
+      >
         <span className="recent-name">
           {liveProfiles.has(profile.name) && <span className="live-dot" aria-hidden="true" />}
           {profile.name}

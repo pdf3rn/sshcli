@@ -784,6 +784,16 @@ h3 {
   background: var(--surface-high);
 }
 
+.recent-card:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.recent-card:disabled:hover {
+  border-color: var(--border);
+  background: var(--surface-alt);
+}
+
 .recent-card:focus-visible {
   outline-offset: 3px;
 }

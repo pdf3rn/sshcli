@@ -77,7 +77,11 @@ function App() {
     }
   };
 
+  const connectingRef = useRef(false);
+
   const connect = useCallback(async (profileName: string) => {
+    if (connectingRef.current) return;
+    connectingRef.current = true;
     setConnecting(true);
     try {
       const id = await invoke<string>('ssh_connect', {
@@ -94,6 +98,7 @@ function App() {
     } catch (reason) {
       setError(String(reason));
     } finally {
+      connectingRef.current = false;
       setConnecting(false);
     }
   }, []);
@@ -105,6 +110,8 @@ function App() {
   };
 
   const connectAdhoc = useCallback(async (target: string, password?: string) => {
+    if (connectingRef.current) return;
+    connectingRef.current = true;
     setConnecting(true);
     try {
       const id = await invoke<string>('ssh_connect_adhoc', {
@@ -120,6 +127,7 @@ function App() {
       setActiveTabId(id);
       setView('session');
     } finally {
+      connectingRef.current = false;
       setConnecting(false);
     }
   }, []);
