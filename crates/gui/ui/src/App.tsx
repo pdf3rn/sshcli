@@ -272,17 +272,15 @@ function App() {
         )}
         {view === 'settings' && <SettingsView prefs={prefs} onChange={updatePrefs} />}
 
-        {view === 'session' && (
-          <>
-      <div className="main">
-        {tabs.length > 0 && (
-          <TabsBar
-            tabs={tabs}
-            activeId={activeTabId}
-            onSelect={setActiveTabId}
-            onClose={closeTab}
-          />
-        )}
+        <div className="main" style={{ display: view === 'session' ? undefined : 'none' }}>
+          {tabs.length > 0 && (
+            <TabsBar
+              tabs={tabs}
+              activeId={activeTabId}
+              onSelect={setActiveTabId}
+              onClose={closeTab}
+            />
+          )}
 
         <main className={`content ${visibleTerminals.size > 1 ? 'split' : ''}`}>
           {terminalTabs.map((tab) => (
@@ -336,9 +334,7 @@ function App() {
           )}
 
         </main>
-          </div>
-          </>
-        )}
+        </div>
       </div>
 
       <StatusBar
