@@ -22,7 +22,6 @@ type ModalState = { open: boolean; editing: Profile | null };
 
 function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({ open: false, editing: null });
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -30,7 +29,6 @@ function App() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [splitId, setSplitId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [profilesLoaded, setProfilesLoaded] = useState(false);
   const [view, setView] = useState<View>('home');
   const [prefs, updatePrefs] = usePrefs();
 
@@ -38,15 +36,12 @@ function App() {
   tabsRef.current = tabs;
   const activeRef = useRef<string | null>(null);
   activeRef.current = activeTabId;
-  const selectedRef = useRef<string | null>(null);
-  selectedRef.current = selected;
 
   const refresh = useCallback(
     () =>
       invoke<Profile[]>('list_profiles')
         .then(setProfiles)
-        .catch((reason) => setError(String(reason)))
-        .finally(() => setProfilesLoaded(true)),
+        .catch((reason) => setError(String(reason))),
     [],
   );
 
@@ -75,7 +70,6 @@ function App() {
       invoke('delete_profile', { name })
         .then(() => {
           setConfirmDelete(null);
-          setSelected((current) => (current === name ? null : current));
           return refresh();
         })
         .catch((reason) => setError(String(reason)));
@@ -97,7 +91,6 @@ function App() {
         { kind: 'terminal', id, profile: profileName, connected: true },
       ]);
       setActiveTabId(id);
-      setSelected(profileName);
       setView('session');
     } catch (reason) {
       setError(String(reason));
@@ -163,7 +156,6 @@ function App() {
           ],
     );
     setActiveTabId(id);
-    setSelected(profileName);
     setView('session');
   }, []);
 
@@ -181,9 +173,7 @@ function App() {
       const key = event.key.toLowerCase();
       if (key === 't' && !event.shiftKey) {
         event.preventDefault();
-        const name = selectedRef.current;
-        if (name) void connect(name);
-        else setModal({ open: true, editing: null });
+        setView('connections');
       } else if (key === 'w') {
         event.preventDefault();
         if (activeRef.current) closeTab(activeRef.current);
@@ -199,7 +189,6 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [connect, closeTab, cycleTabs]);
 
-  const selectedProfile = profiles.find((profile) => profile.name === selected) ?? null;
   const knownGroups = Array.from(
     new Set(profiles.map((profile) => profile.group).filter((group): group is string => !!group)),
   ).sort();
@@ -280,100 +269,6 @@ function App() {
 
         {view === 'session' && (
           <>
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <h1 className="brand">sshcli</h1>
-          <button className="icon-btn" title="Nueva conexión" aria-label="Nueva conexión" onClick={openCreate}>
-            +
-          </button>
-        </div>
-        <p className="muted small">Conexiones ({profiles.length})</p>
-        {!profilesLoaded ? (
-          <ul className="profiles" aria-busy="true" aria-label="Cargando conexiones">
-            {[0, 1, 2].map((index) => (
-              <li key={index} className="profile-skeleton shimmer" aria-hidden="true" />
-            ))}
-          </ul>
-        ) : profiles.length === 0 ? (
-          <p className="muted empty">No hay perfiles todavía.</p>
-        ) : (
-        <ul className="profiles">
-          {profiles.map((profile) => {
-            const liveSessions = terminalTabs.filter(
-              (tab) => tab.profile === profile.name && tab.connected,
-            ).length;
-            return (
-              <li
-                key={profile.name}
-                className={`profile ${selected === profile.name ? 'active' : ''}`}
-              >
-                <button
-                  type="button"
-                  className="profile-select"
-                  onClick={() => setSelected(profile.name)}
-                  onDoubleClick={() => void connect(profile.name)}
-                >
-                  <span className="profile-name">
-                    {liveSessions > 0 && <span className="live-dot" aria-hidden="true" />}
-                    {profile.name}
-                    {liveSessions > 1 && ` ·${liveSessions}`}
-                    {liveSessions > 0 && (
-                      <span className="sr-only">
-                        {' '}({liveSessions === 1 ? '1 sesión activa' : `${liveSessions} sesiones activas`})
-                      </span>
-                    )}
-                  </span>
-                  <span className="profile-endpoint">
-                    {profile.username}@{profile.host}:{profile.port}
-                  </span>
-                </button>
-                <div className="profile-actions">
-                  <button
-                    type="button"
-                    className="icon-btn small profile-connect"
-                    aria-label={`Conectar a ${profile.name}`}
-                    title="Conectar"
-                    disabled={connecting}
-                    onClick={() => void connect(profile.name)}
-                  >
-                    →
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn small"
-                    aria-label={`Editar ${profile.name}`}
-                    title="Editar"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openEdit(profile);
-                    }}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    className={`icon-btn small ${confirmDelete === profile.name ? 'danger' : ''}`}
-                    aria-label={
-                      confirmDelete === profile.name
-                        ? `Confirmar borrado de ${profile.name}`
-                        : `Borrar ${profile.name}`
-                    }
-                    title={confirmDelete === profile.name ? 'Confirmar borrado' : 'Borrar'}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleDelete(profile.name);
-                    }}
-                  >
-                    {confirmDelete === profile.name ? '✓' : '✕'}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-          </ul>
-        )}
-      </aside>
-
       <div className="main">
         <div className="topbar">
           <div className="topbar-tools">
@@ -474,56 +369,27 @@ function App() {
             <TunnelPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />
           )}
 
-          {!activeTab &&
-            (selectedProfile ? (
-              <div className="details">
-                <h2>{selectedProfile.name}</h2>
-                <dl className="detail-grid">
-                  <dt>Endpoint</dt>
-                  <dd>
-                    {selectedProfile.host}:{selectedProfile.port}
-                  </dd>
-                  <dt>Usuario</dt>
-                  <dd>{selectedProfile.username}</dd>
-                  <dt>Autenticación</dt>
-                  <dd>{selectedProfile.authentication}</dd>
-                  <dt>Clave</dt>
-                  <dd>{selectedProfile.identity_file ?? '—'}</dd>
-                </dl>
-                <div className="detail-actions">
-                  <button
-                    className="btn primary connect"
-                    disabled={connecting}
-                    onClick={() => void connect(selectedProfile.name)}
-                  >
-                    {connecting ? 'Conectando…' : 'Conectar'}
-                  </button>
-                  <button
-                    className="btn connect"
-                    onClick={() => openPanel('sftp', selectedProfile.name)}
-                  >
-                    SFTP
-                  </button>
-                  <button
-                    className="btn connect"
-                    onClick={() => openPanel('tunnels', selectedProfile.name)}
-                  >
-                    Túneles
-                  </button>
-                </div>
+          {!activeTab && (
+            <div className="details">
+              <h2>Sesiones</h2>
+              <p className="muted">
+                No hay sesiones abiertas. Conéctate desde la vista de{' '}
+                <strong>Conexiones</strong> o crea un perfil nuevo.
+              </p>
+              <div className="detail-actions">
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => setView('connections')}
+                >
+                  Ir a Conexiones
+                </button>
+                <button type="button" className="btn" onClick={openCreate}>
+                  Nueva conexión
+                </button>
               </div>
-            ) : (
-              <div className="details">
-                <h2>Workspace</h2>
-                <p className="muted">
-                  Selecciona una conexión y pulsa el botón <strong>→</strong> (o doble clic sobre
-                  ella) para abrir una sesión SSH.
-                </p>
-                <p className="muted small">
-                  SFTP y túneles se abren como pestañas desde la vista de cada perfil.
-                </p>
-              </div>
-            ))}
+            </div>
+          )}
 
         </main>
           </div>

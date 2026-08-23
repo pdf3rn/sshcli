@@ -145,11 +145,6 @@ h3 {
   margin: var(--space-1) var(--space-2);
 }
 
-.profile-skeleton {
-  list-style: none;
-  height: 58px;
-}
-
 .pane-empty {
   flex: 1;
   min-height: 120px;
@@ -998,29 +993,7 @@ h3 {
   padding-top: var(--space-3);
 }
 
-/* ---------- Sidebar ---------- */
-
-.sidebar {
-  width: 290px;
-  flex-shrink: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  padding: var(--space-4);
-  overflow-y: auto;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-3);
-}
-
-.brand {
-  margin: 0;
-  font-size: var(--font-xl);
-  color: var(--accent);
-}
+/* ---------- Utilidades ---------- */
 
 .small {
   font-size: var(--font-xs);
@@ -1071,74 +1044,6 @@ h3 {
 .icon-btn.danger {
   color: var(--danger);
   border-color: var(--danger);
-}
-
-.profiles {
-  list-style: none;
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.profile {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  transition: border-color var(--transition), background var(--transition);
-}
-
-.profile:hover,
-.profile.active {
-  border-color: var(--accent);
-  background: var(--active);
-}
-
-.profile-select {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  padding: var(--space-3) 0 var(--space-3) var(--space-3);
-  cursor: pointer;
-}
-
-.profile-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding-right: var(--space-2);
-}
-
-.profile-connect {
-  opacity: 0;
-}
-
-.profile:hover .profile-connect,
-.profile:focus-within .profile-connect,
-.profile-connect:focus-visible {
-  opacity: 1;
-}
-
-.profile-name {
-  font-weight: 600;
-  flex: 1;
-}
-
-.profile-endpoint {
-  color: var(--muted);
-  font-size: var(--font-xs);
 }
 
 /* ---------- Layout principal ---------- */
