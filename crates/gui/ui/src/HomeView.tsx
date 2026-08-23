@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Profile } from './types';
+import { attemptAdhoc, isValidAdhocTarget } from './adhoc';
 
 type Props = {
   profiles: Profile[];
@@ -24,8 +25,6 @@ function formatLastUsed(secs: number | null): string {
 }
 
 const RECENT_LIMIT = 6;
-
-const PASSWORD_REQUIRED = 'sshcli:password-required';
 
 export default function HomeView({
   profiles,
@@ -119,26 +118,24 @@ export default function HomeView({
   const handleAdhocConnect = async () => {
     setHeroError(null);
     const target = heroTarget.trim();
-    if (!target.includes('@') || target.startsWith('@') || target.endsWith('@')) {
+    if (!isValidAdhocTarget(target)) {
       setHeroError('Formato esperado: usuario@host[:puerto]');
       return;
     }
-    try {
-      await onConnectAdhoc(target, passwordVisible ? heroPassword || undefined : undefined);
+    const outcome = await attemptAdhoc(
+      () => onConnectAdhoc(target, passwordVisible ? heroPassword || undefined : undefined),
+      passwordVisible,
+    );
+    if (outcome.status === 'ok') {
       setHeroTarget('');
       setHeroPassword('');
       setPasswordVisible(false);
-    } catch (reason) {
-      const message = String(reason);
-      if (!passwordVisible && message.includes(PASSWORD_REQUIRED)) {
-        setPasswordVisible(true);
-        setHeroError('Este servidor requiere contraseña.');
-        requestAnimationFrame(() => passwordRef.current?.focus());
-      } else if (message.includes(PASSWORD_REQUIRED)) {
-        setHeroError('Contraseña incorrecta o credenciales rechazadas.');
-      } else {
-        setHeroError(message);
-      }
+    } else if (outcome.status === 'password-required') {
+      setPasswordVisible(true);
+      setHeroError('Este servidor requiere contraseña.');
+      requestAnimationFrame(() => passwordRef.current?.focus());
+    } else {
+      setHeroError(outcome.message);
     }
   };
 

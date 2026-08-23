@@ -1490,11 +1490,126 @@ h3 {
 
 .tabbar {
   display: flex;
+  align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   overflow-x: auto;
+}
+
+.tab-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: var(--space-1);
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color var(--transition),
+    background var(--transition);
+}
+
+.tab-add:hover {
+  color: var(--accent);
+  background: var(--active);
+}
+
+.tab.dragging {
+  opacity: 0.45;
+}
+
+.tab.drop-target {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.modal-new-connection {
+  max-height: min(640px, 90vh);
+  overflow-y: auto;
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.modal-divider {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.modal-profile-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.modal-profile-row {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-sm);
+  text-align: left;
+  padding: 6px var(--space-2);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.modal-profile-row:hover:not(:disabled) {
+  background: var(--surface-high);
+  border-color: var(--accent);
+}
+
+.modal-profile-row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.modal-profile-endpoint {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  white-space: nowrap;
+}
+
+.modal-adhoc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.modal-adhoc-row input:first-child {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+}
+
+.modal-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-xs);
 }
 
 .tab {

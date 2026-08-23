@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
+import NewConnectionModal from './NewConnectionModal';
 import ConnectionsView from './ConnectionsView';
 import HomeView from './HomeView';
 import SettingsView from './SettingsView';
@@ -23,6 +24,7 @@ function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({ open: false, editing: null });
+  const [newConnModalOpen, setNewConnModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -130,6 +132,18 @@ function App() {
       connectingRef.current = false;
       setConnecting(false);
     }
+  }, []);
+
+  const reorderTabs = useCallback((dragId: string, targetId: string) => {
+    setTabs((current) => {
+      const from = current.findIndex((tab) => tab.id === dragId);
+      const to = current.findIndex((tab) => tab.id === targetId);
+      if (from === -1 || to === -1 || from === to) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   }, []);
 
   const closeTab = useCallback((id: string) => {
@@ -315,6 +329,8 @@ function App() {
               activeId={activeTabId}
               onSelect={setActiveTabId}
               onClose={closeTab}
+              onReorder={reorderTabs}
+              onAdd={() => setNewConnModalOpen(true)}
             />
           )}
 
@@ -397,6 +413,17 @@ function App() {
             setModal({ open: false, editing: null });
             return refresh();
           }}
+        />
+      )}
+
+      {newConnModalOpen && (
+        <NewConnectionModal
+          profiles={profiles}
+          liveProfiles={liveProfileNames}
+          connecting={connecting}
+          onConnectProfile={(name) => void connect(name)}
+          onConnectAdhoc={connectAdhoc}
+          onClose={() => setNewConnModalOpen(false)}
         />
       )}
     </div>
