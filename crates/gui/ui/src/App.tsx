@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
 import SftpPanel from './SftpPanel';
 import TerminalTab from './TerminalTab';
+import TunnelPanel from './TunnelPanel';
 import './styles.css';
 
 type Profile = {
@@ -29,6 +30,7 @@ function App() {
   const [activeSession, setActiveSession] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [sftpProfile, setSftpProfile] = useState<string | null>(null);
+  const [tunnelProfile, setTunnelProfile] = useState<string | null>(null);
 
   const refresh = useCallback(
     () =>
@@ -154,6 +156,7 @@ function App() {
                 className={`tab ${session.id === activeSession ? 'tab-active' : ''}`}
                 onClick={() => {
                   setSftpProfile(null);
+                  setTunnelProfile(null);
                   setActiveSession(session.id);
                 }}
               >
@@ -165,6 +168,8 @@ function App() {
 
         {sftpProfile ? (
           <SftpPanel profile={sftpProfile} onClose={() => setSftpProfile(null)} />
+        ) : tunnelProfile ? (
+          <TunnelPanel profile={tunnelProfile} onClose={() => setTunnelProfile(null)} />
         ) : activeSessionObj ? (
           <TerminalTab
             sessionId={activeSessionObj.id}
@@ -199,6 +204,12 @@ function App() {
                 onClick={() => setSftpProfile(selectedProfile.name)}
               >
                 SFTP
+              </button>
+              <button
+                className="btn connect"
+                onClick={() => setTunnelProfile(selectedProfile.name)}
+              >
+                Túneles
               </button>
             </div>
           </div>

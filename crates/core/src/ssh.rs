@@ -2,6 +2,8 @@ use std::{path::Path, sync::Arc, time::Duration};
 
 use russh::client;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Notify;
+use tokio::task::JoinHandle;
 
 use crate::{
     error::{AppError, AppResult},
@@ -91,26 +93,53 @@ pub async fn open_sftp(options: ConnectionOptions) -> AppResult<russh_sftp::clie
         .map_err(|error| AppError::Sftp(error.to_string()))
 }
 
-pub async fn forward_local(
-    options: ConnectionOptions,
-    bind_host: String,
-    bind_port: u16,
-    target_host: String,
-    target_port: u16,
-) -> AppResult<()> {
-    let listener = TcpListener::bind((bind_host.as_str(), bind_port)).await?;
-    let session = authenticate(options).await?;
+pub struct LocalForward {
+    pub bind_addr: std::net::SocketAddr,
+    pub target_host: String,
+    pub target_port: u16,
+    stop: Arc<Notify>,
+    join: JoinHandle<AppResult<()>>,
+}
 
-    loop {
-        tokio::select! {
-            connection = listener.accept() => {
-                let (socket, origin) = connection?;
-                forward_connection(&session, socket, origin, &target_host, target_port).await?;
+impl LocalForward {
+    pub async fn start(
+        options: ConnectionOptions,
+        bind_host: String,
+        bind_port: u16,
+        target_host: String,
+        target_port: u16,
+    ) -> AppResult<Self> {
+        let listener = TcpListener::bind((bind_host.as_str(), bind_port)).await?;
+        let bind_addr = listener.local_addr()?;
+        let session = authenticate(options).await?;
+        let stop = Arc::new(Notify::new());
+        let stop_task = stop.clone();
+        let target = target_host.clone();
+        let join = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    connection = listener.accept() => {
+                        let (socket, origin) = connection?;
+                        forward_connection(&session, socket, origin, &target, target_port).await?;
+                    }
+                    _ = stop_task.notified() => break,
+                }
             }
-            _ = tokio::signal::ctrl_c() => break,
-        }
+            Ok(())
+        });
+        Ok(Self {
+            bind_addr,
+            target_host,
+            target_port,
+            stop,
+            join,
+        })
     }
-    Ok(())
+
+    pub async fn stop(self) {
+        self.stop.notify_one();
+        let _ = self.join.await;
+    }
 }
 
 async fn forward_connection(
