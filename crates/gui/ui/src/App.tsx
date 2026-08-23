@@ -261,6 +261,11 @@ function App() {
             onConnect={(name) => void connect(name)}
             onEdit={openEdit}
             onDelete={handleDelete}
+            onToggleFavorite={(name) => {
+              void invoke<boolean>('toggle_favorite', { name })
+                .then(() => refresh())
+                .catch((reason) => setError(String(reason)));
+            }}
             onCreate={openCreate}
           />
         )}

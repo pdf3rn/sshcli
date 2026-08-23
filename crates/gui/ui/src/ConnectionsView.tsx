@@ -8,6 +8,7 @@ type Props = {
   onConnect: (name: string) => void;
   onEdit: (profile: Profile) => void;
   onDelete: (name: string) => void;
+  onToggleFavorite: (name: string) => void;
   onCreate: () => void;
 };
 
@@ -41,6 +42,7 @@ export default function ConnectionsView({
   onConnect,
   onEdit,
   onDelete,
+  onToggleFavorite,
   onCreate,
 }: Props) {
   const [query, setQuery] = useState('');
@@ -79,6 +81,12 @@ export default function ConnectionsView({
       return haystack.includes(needle);
     });
   }, [profiles, query, activeGroup]);
+
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => Number(b.favorite) - Number(a.favorite)),
+    [filtered],
+  );
 
   const groupItems = [
     { id: '__all__', label: 'Todas las conexiones', count: profiles.length },
@@ -157,7 +165,7 @@ export default function ConnectionsView({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((profile) => {
+                {ordered.map((profile) => {
                   const live = liveProfiles.has(profile.name);
                   return (
                     <tr
@@ -196,6 +204,22 @@ export default function ConnectionsView({
                       <td className="cell-last">{formatLastUsed(profile.last_used)}</td>
                       <td className="col-actions">
                         <div className="row-actions">
+                          <button
+                            type="button"
+                            className={`icon-btn small star-btn ${profile.favorite ? 'on' : ''}`}
+                            aria-pressed={profile.favorite}
+                            aria-label={
+                              profile.favorite
+                                ? `Quitar ${profile.name} de favoritos`
+                                : `Añadir ${profile.name} a favoritos`
+                            }
+                            title={
+                              profile.favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'
+                            }
+                            onClick={() => onToggleFavorite(profile.name)}
+                          >
+                            {profile.favorite ? '★' : '☆'}
+                          </button>
                           <button
                             type="button"
                             className="icon-btn small row-connect"

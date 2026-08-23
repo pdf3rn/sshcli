@@ -182,7 +182,13 @@ async fn sample_once(
     let healthy = matches!(conns.get(profile_name), Some(conn) if !conn.exec.is_closed());
     if !healthy {
         conns.remove(profile_name);
-        let conn = ConnState::new(connect_exec(profile_name).await?);
+        let mut conn = ConnState::new(connect_exec(profile_name).await?);
+        let warmup = conn
+            .exec
+            .run(SAMPLE_COMMAND)
+            .await
+            .map_err(|error| error.to_string())?;
+        let _ = parse_sample(&warmup, &mut conn);
         conns.insert(profile_name.to_string(), conn);
     }
 

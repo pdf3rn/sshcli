@@ -30,6 +30,8 @@ pub struct ProfileInput {
     pub group: Option<String>,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub favorite: bool,
     pub secret: Option<String>,
 }
 
@@ -61,6 +63,7 @@ impl ProfileInput {
                 group: self.group.filter(|group| !group.is_empty()),
                 tags: self.tags.unwrap_or_default(),
                 last_used: None,
+                favorite: self.favorite,
             },
             self.secret,
         ))
@@ -91,13 +94,17 @@ pub fn create_profile(input: ProfileInput) -> Result<(), String> {
 #[tauri::command]
 pub fn update_profile(input: ProfileInput) -> Result<(), String> {
     let store = ProfileStore::new();
-    let previous_last_used = store
+    let previous = store
         .load()
         .ok()
-        .and_then(|profiles| profiles.into_iter().find(|p| p.name == input.name))
-        .and_then(|profile| profile.last_used);
+        .and_then(|profiles| profiles.into_iter().find(|p| p.name == input.name));
+    let previous_last_used = previous.as_ref().and_then(|profile| profile.last_used);
+    let previous_favorite = previous.as_ref().map(|profile| profile.favorite);
     let (mut profile, secret) = input.into_profile()?;
     profile.last_used = previous_last_used;
+    if let Some(favorite) = previous_favorite {
+        profile.favorite = favorite;
+    }
     let _ = credentials::delete(&profile.name);
     if let Some(secret) = profile_secret(&profile, secret) {
         credentials::set(&profile.name, &secret).map_err(|error| error.to_string())?;
@@ -114,6 +121,27 @@ pub fn delete_profile(name: String) -> Result<(), String> {
     store.remove(&name).map_err(|error| error.to_string())?;
     let _ = credentials::delete(&name);
     Ok(())
+}
+
+#[tauri::command]
+pub fn export_profiles() -> Result<String, String> {
+    ProfileStore::new()
+        .export_toml()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn toggle_favorite(name: String) -> Result<bool, String> {
+    let store = ProfileStore::new();
+    let mut profiles = store.load().map_err(|error| error.to_string())?;
+    let profile = profiles
+        .iter_mut()
+        .find(|profile| profile.name == name)
+        .ok_or_else(|| format!("profile not found: {name}"))?;
+    profile.favorite = !profile.favorite;
+    let favorite = profile.favorite;
+    store.save(&profiles).map_err(|error| error.to_string())?;
+    Ok(favorite)
 }
 
 #[tauri::command]

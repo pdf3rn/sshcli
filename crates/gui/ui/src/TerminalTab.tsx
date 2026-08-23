@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { Prefs } from './prefs';
@@ -26,6 +27,10 @@ export default function TerminalTab({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const prefsRef = useRef(prefs);
@@ -57,11 +62,14 @@ export default function TerminalTab({
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    const search = new SearchAddon();
+    term.loadAddon(search);
     if (containerRef.current) {
       term.open(containerRef.current);
     }
     terminalRef.current = term;
     fitRef.current = fit;
+    searchRef.current = search;
 
     let disposed = false;
 
@@ -108,6 +116,15 @@ export default function TerminalTab({
     };
     containerRef.current?.addEventListener('contextmenu', onContextMenu);
 
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        setSearchOpen(true);
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      }
+    };
+    containerRef.current?.addEventListener('keydown', onKeyDown);
+
     let unlistenData: (() => void) | undefined;
     let unlistenStatus: (() => void) | undefined;
 
@@ -133,6 +150,7 @@ export default function TerminalTab({
       dataListener.dispose();
       selectionListener.dispose();
       containerRef.current?.removeEventListener('contextmenu', onContextMenu);
+      containerRef.current?.removeEventListener('keydown', onKeyDown);
       unlistenData?.();
       unlistenStatus?.();
       observer.disconnect();
@@ -163,9 +181,70 @@ export default function TerminalTab({
     return () => cancelAnimationFrame(frame);
   }, [visible]);
 
+  const runSearch = (backwards: boolean) => {
+    const search = searchRef.current;
+    if (!search || !searchQuery) return;
+    if (backwards) search.findPrevious(searchQuery);
+    else search.findNext(searchQuery);
+  };
+
+  const closeSearch = () => {
+    searchRef.current?.clearDecorations();
+    setSearchOpen(false);
+    terminalRef.current?.focus();
+  };
+
   return (
     <div className="terminal-tab">
       <div className="terminal-body" ref={containerRef} />
+      {searchOpen && (
+        <div className="term-search" role="search" aria-label="Buscar en terminal">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            placeholder="Buscar…"
+            aria-label="Texto a buscar"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                runSearch(event.shiftKey);
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                closeSearch();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="term-search-btn"
+            aria-label="Resultado anterior"
+            title="Anterior (Shift+Enter)"
+            onClick={() => runSearch(true)}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="term-search-btn"
+            aria-label="Resultado siguiente"
+            title="Siguiente (Enter)"
+            onClick={() => runSearch(false)}
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            className="term-search-btn"
+            aria-label="Cerrar búsqueda"
+            title="Cerrar (Esc)"
+            onClick={closeSearch}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {!connected && (
         <div className="terminal-dead" role="status">
           <span className="terminal-dead-text">Sesión cerrada</span>

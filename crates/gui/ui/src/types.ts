@@ -11,6 +11,7 @@ export type Profile = {
   group: string | null;
   tags: string[];
   last_used: number | null;
+  favorite: boolean;
 };
 
 export type Tab =

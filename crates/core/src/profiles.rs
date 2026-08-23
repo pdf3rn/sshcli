@@ -22,6 +22,8 @@ pub struct Profile {
     pub tags: Vec<String>,
     #[serde(default)]
     pub last_used: Option<u64>,
+    #[serde(default)]
+    pub favorite: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -123,6 +125,13 @@ impl ProfileStore {
         }
         Ok(imported)
     }
+
+    pub fn export_toml(&self) -> AppResult<String> {
+        let file = ProfileFile {
+            profiles: self.load()?,
+        };
+        toml::to_string(&file).map_err(|error| AppError::Profile(error.to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -143,6 +152,7 @@ mod tests {
             group: Some("Production".into()),
             tags: vec!["web".into()],
             last_used: Some(1_700_000_000),
+            favorite: true,
         };
         let serialized = toml::to_string(&profile).unwrap();
         assert!(!serialized.contains("password"));
@@ -169,5 +179,6 @@ mod tests {
         assert_eq!(parsed.profiles[0].group, None);
         assert!(parsed.profiles[0].tags.is_empty());
         assert_eq!(parsed.profiles[0].last_used, None);
+        assert!(!parsed.profiles[0].favorite);
     }
 }

@@ -37,6 +37,35 @@ export default function HomeView({
   const recents = [...profiles]
     .sort((a, b) => (b.last_used ?? 0) - (a.last_used ?? 0))
     .slice(0, RECENT_LIMIT);
+  const favorites = profiles
+    .filter((profile) => profile.favorite)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const renderCard = (profile: Profile) => (
+    <li key={profile.name}>
+      <button type="button" className="recent-card" onClick={() => onConnect(profile.name)}>
+        <span className="recent-name">
+          {liveProfiles.has(profile.name) && <span className="live-dot" aria-hidden="true" />}
+          {profile.name}
+          {profile.favorite && (
+            <span className="fav-star" aria-label="Favorito">
+              ★
+            </span>
+          )}
+          <span className="recent-chevron" aria-hidden="true">
+            ›
+          </span>
+        </span>
+        <span className="recent-endpoint">
+          {profile.username}@{profile.host}
+        </span>
+        <span className="recent-meta">
+          {formatLastUsed(profile.last_used)}
+          {profile.group ? ` · ${profile.group}` : ''}
+        </span>
+      </button>
+    </li>
+  );
 
   const handleImportFile = async (file: File) => {
     setImportMessage(null);
@@ -54,6 +83,23 @@ export default function HomeView({
     }
   };
 
+  const handleExport = async () => {
+    setImportMessage(null);
+    try {
+      const content = await invoke<string>('export_profiles');
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'sshcli-profiles.toml';
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setImportMessage('Configuración exportada como sshcli-profiles.toml.');
+    } catch (reason) {
+      setImportMessage(`Error al exportar: ${reason}`);
+    }
+  };
+
   return (
     <section className="home-view" aria-labelledby="home-title">
       <div className="home-hero">
@@ -66,6 +112,13 @@ export default function HomeView({
         </p>
       </div>
 
+      {favorites.length > 0 && (
+        <div className="home-section">
+          <h3 className="panel-label">Favoritos</h3>
+          <ul className="recent-grid">{favorites.map(renderCard)}</ul>
+        </div>
+      )}
+
       <div className="home-section">
         <div className="home-section-header">
           <h3 className="panel-label">Conexiones recientes</h3>
@@ -76,34 +129,7 @@ export default function HomeView({
         {recents.length === 0 ? (
           <p className="muted">Aún no hay conexiones. Crea tu primer perfil para empezar.</p>
         ) : (
-          <ul className="recent-grid">
-            {recents.map((profile) => (
-              <li key={profile.name}>
-                <button
-                  type="button"
-                  className="recent-card"
-                  onClick={() => onConnect(profile.name)}
-                >
-                  <span className="recent-name">
-                    {liveProfiles.has(profile.name) && (
-                      <span className="live-dot" aria-hidden="true" />
-                    )}
-                    {profile.name}
-                    <span className="recent-chevron" aria-hidden="true">
-                      ›
-                    </span>
-                  </span>
-                  <span className="recent-endpoint">
-                    {profile.username}@{profile.host}
-                  </span>
-                  <span className="recent-meta">
-                    {formatLastUsed(profile.last_used)}
-                    {profile.group ? ` · ${profile.group}` : ''}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <ul className="recent-grid">{recents.map(renderCard)}</ul>
         )}
       </div>
 
@@ -125,6 +151,12 @@ export default function HomeView({
               ⇪
             </span>
             Importar config
+          </button>
+          <button type="button" className="action-card" onClick={() => void handleExport()}>
+            <span className="action-glyph" aria-hidden="true">
+              ⇩
+            </span>
+            Exportar config
           </button>
           <input
             ref={fileInputRef}

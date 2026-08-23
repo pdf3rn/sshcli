@@ -1041,6 +1041,19 @@ h3 {
   color: var(--muted);
 }
 
+.row-actions .star-btn {
+  opacity: 1;
+}
+
+.icon-btn.star-btn.on {
+  color: #ffd166;
+}
+
+.fav-star {
+  color: #ffd166;
+  font-size: var(--font-xs);
+}
+
 .icon-btn.danger {
   color: var(--danger);
   border-color: var(--danger);
@@ -1108,6 +1121,7 @@ h3 {
   flex: 1;
   min-width: 0;
   position: relative;
+  display: flex;
 }
 
 .pane-slot + .pane-slot {
@@ -1538,6 +1552,55 @@ h3 {
 .terminal-dead-text {
   font-size: var(--font-sm);
   color: var(--danger);
+}
+
+.term-search {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px var(--space-1) 3px var(--space-2);
+  background: var(--surface-highest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.term-search input {
+  width: 170px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+}
+
+.term-search input::placeholder {
+  color: var(--muted);
+}
+
+.term-search-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  transition: color var(--transition), background var(--transition);
+}
+
+.term-search-btn:hover {
+  color: var(--accent);
+  background: var(--active);
 }
 
 /* Etiqueta de perfil solo en vista dividida */
