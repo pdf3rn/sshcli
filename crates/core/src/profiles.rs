@@ -104,6 +104,25 @@ impl ProfileStore {
         }
         self.save(&profiles)
     }
+
+    pub fn import_toml(&self, content: &str) -> AppResult<usize> {
+        let incoming = toml::from_str::<ProfileFile>(content)
+            .map_err(|error| AppError::Profile(format!("invalid profiles file: {error}")))?
+            .profiles;
+        let mut current = self.load()?;
+        let mut imported = 0;
+        for profile in incoming {
+            if current.iter().any(|existing| existing.name == profile.name) {
+                continue;
+            }
+            current.push(profile);
+            imported += 1;
+        }
+        if imported > 0 {
+            self.save(&current)?;
+        }
+        Ok(imported)
+    }
 }
 
 #[cfg(test)]

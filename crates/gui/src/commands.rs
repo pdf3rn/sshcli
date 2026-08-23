@@ -123,6 +123,13 @@ pub fn touch_last_used(name: String) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+pub fn import_profiles(content: String) -> Result<usize, String> {
+    ProfileStore::new()
+        .import_toml(&content)
+        .map_err(|error| error.to_string())
+}
+
 fn profile_secret(profile: &Profile, supplied: Option<String>) -> Option<String> {
     match profile.authentication {
         Authentication::Password => supplied.filter(|secret| !secret.is_empty()),

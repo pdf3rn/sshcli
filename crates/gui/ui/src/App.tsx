@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
 import ConnectionsView from './ConnectionsView';
+import HomeView from './HomeView';
 import SftpPanel from './SftpPanel';
 import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
@@ -250,9 +251,13 @@ function App() {
 
       <div className="workspace">
         {view === 'home' && (
-          <ViewPlaceholder
-            title="Inicio"
-            description="Acceso rápido a tus conexiones recientes y acciones frecuentes."
+          <HomeView
+            profiles={profiles}
+            liveProfiles={liveProfileNames}
+            onConnect={(name) => void connect(name)}
+            onCreate={openCreate}
+            onBrowseAll={() => setView('connections')}
+            onImported={refresh}
           />
         )}
         {view === 'connections' && (
