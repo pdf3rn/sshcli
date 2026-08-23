@@ -48,3 +48,20 @@ export function ActivityIcon({ size = 16 }: IconProps) {
     </svg>
   );
 }
+
+export function FolderIcon({ size = 14 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z" />
+    </svg>
+  );
+}
+
+export function FileIcon({ size = 14 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9l-6-6z" />
+      <path d="M13 3v6h6" />
+    </svg>
+  );
+}

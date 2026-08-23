@@ -5,7 +5,8 @@ use std::{
 
 use russh_sftp::client::SftpSession;
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use sshcli_core::{credentials, sftp, ssh, ProfileStore};
 
@@ -33,7 +34,17 @@ pub fn init_state() -> SftpState {
 pub struct SftpEntry {
     pub name: String,
     pub kind: String,
+    pub is_dir: bool,
     pub size: u64,
+}
+
+#[derive(Serialize, Clone)]
+struct ProgressPayload {
+    id: String,
+    name: String,
+    direction: &'static str,
+    transferred: u64,
+    total: u64,
 }
 
 fn session_id(manager: &SftpManager, profile: &str) -> String {
@@ -111,14 +122,47 @@ pub async fn sftp_list_dir(
         .map(|entries| {
             entries
                 .into_iter()
-                .map(|entry| SftpEntry {
-                    name: entry.name,
-                    kind: format!("{:?}", entry.kind).to_lowercase(),
-                    size: entry.size,
+                .map(|entry| {
+                    let kind = format!("{:?}", entry.kind).to_lowercase();
+                    let is_dir = kind == "dir";
+                    SftpEntry {
+                        name: entry.name,
+                        kind,
+                        is_dir,
+                        size: entry.size,
+                    }
                 })
                 .collect()
         })
         .map_err(|error| error.to_string())
+}
+
+fn progress_closure(
+    app: &AppHandle,
+    id: &str,
+    name: String,
+    direction: &'static str,
+) -> impl Fn(u64, u64) + 'static {
+    let app = app.clone();
+    let id = id.to_string();
+    let last = Arc::new(AtomicU64::new(0));
+    move |transferred: u64, total: u64| {
+        let previous = last.load(Ordering::Relaxed);
+        let step = transferred.saturating_sub(previous);
+        if transferred == 0 || transferred >= total || step >= 256 * 1024 {
+            last.store(transferred, Ordering::Relaxed);
+            let _ = app.emit(
+                "sftp-progress",
+                ProgressPayload {
+                    id: id.clone(),
+                    name: name.clone(),
+                    direction,
+                    transferred,
+                    total,
+                },
+            );
+        }
+    }
 }
 
 #[tauri::command]
@@ -132,6 +176,7 @@ pub async fn sftp_pwd(state: State<'_, SftpState>, id: String) -> Result<String,
 
 #[tauri::command]
 pub async fn sftp_download(
+    app: AppHandle,
     state: State<'_, SftpState>,
     id: String,
     remote: String,
@@ -139,13 +184,20 @@ pub async fn sftp_download(
 ) -> Result<(), String> {
     let session = fetch_session(&state, &id)?;
     let session = session.lock().await;
-    sftp::download(&session, &remote, &std::path::PathBuf::from(local))
-        .await
-        .map_err(|error| error.to_string())
+    let name = remote.rsplit('/').next().unwrap_or(&remote).to_string();
+    sftp::download(
+        &session,
+        &remote,
+        &std::path::PathBuf::from(local),
+        progress_closure(&app, &id, name, "download"),
+    )
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 pub async fn sftp_upload(
+    app: AppHandle,
     state: State<'_, SftpState>,
     id: String,
     local: String,
@@ -153,9 +205,15 @@ pub async fn sftp_upload(
 ) -> Result<(), String> {
     let session = fetch_session(&state, &id)?;
     let session = session.lock().await;
-    sftp::upload(&session, &std::path::PathBuf::from(local), &remote)
-        .await
-        .map_err(|error| error.to_string())
+    let name = local.rsplit('/').next().unwrap_or(&local).to_string();
+    sftp::upload(
+        &session,
+        &std::path::PathBuf::from(local),
+        &remote,
+        progress_closure(&app, &id, name, "upload"),
+    )
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

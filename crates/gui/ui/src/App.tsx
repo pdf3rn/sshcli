@@ -338,7 +338,7 @@ function App() {
           ))}
 
           {activeTab?.kind === 'sftp' && (
-            <SftpPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />
+            <SftpPanel profile={activeTab.profile} />
           )}
           {activeTab?.kind === 'terminal' && prefs.telemetryEnabled && prefs.telemetryPanelOpen && (
             <TelemetryPanel profile={activeTab.profile} />

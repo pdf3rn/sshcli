@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import PromptDialog from './PromptDialog';
+import { FileIcon, FolderIcon } from './icons';
 
 const SKELETON_WIDTHS = ['85%', '70%', '92%', '60%', '78%', '88%'];
 
@@ -15,8 +17,14 @@ function PaneSkeletons() {
 }
 
 type Entry = { name: string; kind?: string; is_dir: boolean; size: number };
-type Props = { profile: string; onClose: () => void };
+type Props = { profile: string };
 type DialogState = { kind: 'mkdir' } | { kind: 'delete'; entry: Entry };
+type TransferProgress = {
+  name: string;
+  direction: 'upload' | 'download';
+  transferred: number;
+  total: number;
+};
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -55,7 +63,7 @@ function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete }: RowProp
           onClick={() => (entry.is_dir ? onOpen(entry) : onTransfer(entry))}
         >
           <span className={`pane-icon ${entry.is_dir ? 'dir' : 'file'}`} aria-hidden="true">
-            {entry.is_dir ? '▸' : ''}
+            {entry.is_dir ? <FolderIcon /> : <FileIcon />}
           </span>
           <span className="pane-name">{entry.name}</span>
           <span className="pane-size">{entry.is_dir ? '' : fmtSize(entry.size)}</span>
@@ -89,18 +97,44 @@ function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete }: RowProp
   );
 }
 
-export default function SftpPanel({ profile, onClose }: Props) {
+export default function SftpPanel({ profile }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [remotePath, setRemotePath] = useState('.');
+  const [remotePath, setRemotePath] = useState('');
+  const [remoteDraft, setRemoteDraft] = useState('');
   const [remoteEntries, setRemoteEntries] = useState<Entry[]>([]);
   const [localPath, setLocalPath] = useState('');
+  const [localDraft, setLocalDraft] = useState('');
   const [localEntries, setLocalEntries] = useState<Entry[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadingRemote, setLoadingRemote] = useState(true);
   const [loadingLocal, setLoadingLocal] = useState(true);
+  const [progress, setProgress] = useState<TransferProgress | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const mounted = useRef(true);
+  const sessionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setLocalDraft(localPath);
+  }, [localPath]);
+
+  useEffect(() => {
+    setRemoteDraft(remotePath);
+  }, [remotePath]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let disposed = false;
+    const promise = listen<TransferProgress & { id: string }>('sftp-progress', (event) => {
+      if (disposed || event.payload.id !== sessionId) return;
+      const { id: _ignored, ...rest } = event.payload;
+      setProgress(rest);
+    });
+    return () => {
+      disposed = true;
+      void promise.then((unlisten) => unlisten());
+    };
+  }, [sessionId]);
 
   const refreshRemote = useCallback(
     async (id: string, path: string) => {
@@ -144,39 +178,79 @@ export default function SftpPanel({ profile, onClose }: Props) {
           invoke('sftp_close', { id }).catch(() => undefined);
           return;
         }
+        sessionIdRef.current = id;
         setSessionId(id);
-        const home = await invoke<string>('local_home');
-        await Promise.all([
-          refreshRemote(id, '.'),
-          refreshLocal(home).then(() => setLocalPath(home)),
+        const [home, localHome] = await Promise.all([
+          invoke<string>('sftp_pwd', { id }),
+          invoke<string>('local_home'),
         ]);
+        await Promise.all([refreshRemote(id, home), refreshLocal(localHome)]);
       } catch (reason) {
         if (mounted.current) setMessage(String(reason));
       }
     })();
     return () => {
       mounted.current = false;
+      if (sessionIdRef.current) {
+        invoke('sftp_close', { id: sessionIdRef.current }).catch(() => undefined);
+        sessionIdRef.current = null;
+      }
     };
   }, [profile, refreshRemote, refreshLocal]);
-
-  const close = () => {
-    if (sessionId) invoke('sftp_close', { id: sessionId }).catch(() => undefined);
-    onClose();
-  };
 
   const base = (path: string) => path.replace(/\/$/, '');
 
   const openRemoteDir = async (name: string) => {
-    if (!sessionId) return;
+    if (!sessionId || !remotePath) return;
     setBusy(true);
     await refreshRemote(sessionId, `${base(remotePath)}/${name}`);
     setBusy(false);
   };
 
   const goRemoteUp = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !remotePath) return;
     const parent = remotePath.split('/').filter(Boolean).slice(0, -1).join('/');
-    await refreshRemote(sessionId, parent || '.');
+    await refreshRemote(sessionId, parent ? `/${parent}` : '/');
+  };
+
+  const submitRemotePath = async () => {
+    const target = remoteDraft.trim();
+    if (!sessionId || !target) {
+      setRemoteDraft(remotePath);
+      return;
+    }
+    setLoadingRemote(true);
+    try {
+      const entries = await invoke<Entry[]>('sftp_list_dir', { id: sessionId, path: target });
+      if (!mounted.current) return;
+      setRemoteEntries(entries);
+      setRemotePath(target);
+    } catch (reason) {
+      if (mounted.current) setMessage(String(reason));
+      setRemoteDraft(remotePath);
+    } finally {
+      if (mounted.current) setLoadingRemote(false);
+    }
+  };
+
+  const submitLocalPath = async () => {
+    const target = localDraft.trim();
+    if (!target) {
+      setLocalDraft(localPath);
+      return;
+    }
+    setLoadingLocal(true);
+    try {
+      const entries = await invoke<Entry[]>('list_local_dir', { path: target });
+      if (!mounted.current) return;
+      setLocalEntries(entries);
+      setLocalPath(target);
+    } catch (reason) {
+      if (mounted.current) setMessage(String(reason));
+      setLocalDraft(localPath);
+    } finally {
+      if (mounted.current) setLoadingLocal(false);
+    }
   };
 
   const openLocalDir = async (name: string) => {
@@ -196,8 +270,10 @@ export default function SftpPanel({ profile, onClose }: Props) {
       await fn();
       if (sessionId) await refreshRemote(sessionId, remotePath);
       setMessage(okMessage);
+      setProgress(null);
     } catch (reason) {
       setMessage(String(reason));
+      setProgress(null);
     } finally {
       setBusy(false);
     }
@@ -241,18 +317,6 @@ export default function SftpPanel({ profile, onClose }: Props) {
 
   return (
     <div className="sftp-panel">
-      <div className="sftp-header">
-        <span className="terminal-dot" aria-hidden="true" />
-        <span className="terminal-title">SFTP · {profile}</span>
-        <button
-          type="button"
-          className="terminal-close"
-          aria-label={`Cerrar SFTP de ${profile}`}
-          onClick={close}
-        >
-          ✕
-        </button>
-      </div>
       {message && (
         <div className="pane-message" role="status">
           <span>{message}</span>
@@ -267,7 +331,22 @@ export default function SftpPanel({ profile, onClose }: Props) {
             <button type="button" className="btn ghost small" onClick={goLocalUp} disabled={busy} aria-label="Subir al directorio local anterior">
               ↑
             </button>
-            <input value={localPath} readOnly className="pane-path" aria-label="Ruta local" />
+            <input
+              value={localDraft}
+              className="pane-path"
+              aria-label="Ruta local"
+              spellCheck={false}
+              onChange={(event) => setLocalDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void submitLocalPath();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setLocalDraft(localPath);
+                }
+              }}
+            />
           </div>
           <ul className="pane-list" aria-busy={loadingLocal || undefined}>
             {loadingLocal ? (
@@ -299,7 +378,22 @@ export default function SftpPanel({ profile, onClose }: Props) {
             <button type="button" className="btn ghost small" onClick={goRemoteUp} disabled={busy} aria-label="Subir al directorio remoto anterior">
               ↑
             </button>
-            <input value={remotePath} readOnly className="pane-path" aria-label="Ruta remota" />
+            <input
+              value={remoteDraft}
+              className="pane-path"
+              aria-label="Ruta remota"
+              spellCheck={false}
+              onChange={(event) => setRemoteDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void submitRemotePath();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setRemoteDraft(remotePath);
+                }
+              }}
+            />
             <button
               type="button"
               className="btn ghost small"
@@ -335,6 +429,37 @@ export default function SftpPanel({ profile, onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {progress && (
+        <div className="pane-progress" role="status">
+          <span className="pane-progress-label">
+            {progress.direction === 'download' ? '↓' : '↑'} {progress.name} ·{' '}
+            {fmtSize(progress.transferred)}
+            {progress.total > 0 && ` / ${fmtSize(progress.total)}`}
+          </span>
+          <div
+            className="pane-progress-track"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={
+              progress.total > 0
+                ? Math.min(100, Math.round((progress.transferred / progress.total) * 100))
+                : undefined
+            }
+          >
+            <div
+              className="pane-progress-fill"
+              style={{
+                width:
+                  progress.total > 0
+                    ? `${Math.min(100, (progress.transferred / progress.total) * 100)}%`
+                    : '100%',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {dialog?.kind === 'mkdir' && (
         <PromptDialog

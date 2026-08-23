@@ -23,9 +23,15 @@ pub fn available_identity_files() -> Vec<String> {
 }
 
 pub fn expand_home(path: &str) -> PathBuf {
+    let home = || directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf());
+    if path == "~" {
+        if let Some(home) = home() {
+            return home;
+        }
+    }
     if let Some(rest) = path.strip_prefix("~/") {
-        if let Some(home) = directories::BaseDirs::new() {
-            return home.home_dir().join(rest);
+        if let Some(home) = home() {
+            return home.join(rest);
         }
     }
     PathBuf::from(path)

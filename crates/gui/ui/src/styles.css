@@ -1731,15 +1731,35 @@ h3 {
   background: var(--bg);
 }
 
-.sftp-header {
+.pane-progress {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border);
   background: var(--surface);
-  color: var(--muted);
+}
+
+.pane-progress-label {
+  flex-shrink: 0;
   font-size: var(--font-xs);
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.pane-progress-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-highest);
+  overflow: hidden;
+}
+
+.pane-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-container);
+  transition: width 150ms linear;
 }
 
 .pane-message {
@@ -1784,10 +1804,18 @@ h3 {
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--muted);
+  color: var(--text);
   padding: 5px var(--space-2);
   font: inherit;
+  font-family: var(--font-mono);
   font-size: var(--font-xs);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.pane-path:focus {
+  border-color: var(--accent-container);
+  box-shadow: 0 0 0 1px var(--accent-container);
 }
 
 .pane-list {
@@ -1836,6 +1864,15 @@ h3 {
 
 .pane-item .icon-btn {
   flex-shrink: 0;
+}
+
+.pane-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+  color: var(--muted);
 }
 
 .pane-icon.dir {

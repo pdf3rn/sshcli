@@ -23,28 +23,63 @@ pub async fn list_dir(session: &SftpSession, path: &str) -> AppResult<Vec<Remote
         .read_dir(path)
         .await
         .map_err(|error| AppError::Sftp(error.to_string()))?;
-    Ok(entries
+    let mut result: Vec<RemoteEntry> = entries
+        .filter(|entry| {
+            let name = entry.file_name();
+            name != "." && name != ".."
+        })
         .map(|entry| RemoteEntry {
             name: entry.file_name(),
             kind: entry.file_type(),
             size: entry.metadata().size.unwrap_or(0),
         })
-        .collect())
+        .collect();
+    result.sort_by(|a, b| {
+        let a_dir = a.kind == FileType::Dir;
+        let b_dir = b.kind == FileType::Dir;
+        b_dir.cmp(&a_dir).then_with(|| a.name.cmp(&b.name))
+    });
+    Ok(result)
 }
 
-pub async fn download(session: &SftpSession, remote: &str, local: &PathBuf) -> AppResult<()> {
+pub async fn download<F>(session: &SftpSession, remote: &str, local: &PathBuf, on_progress: F) -> AppResult<()>
+where
+    F: Fn(u64, u64),
+{
     let mut source = session
         .open(remote)
         .await
         .map_err(|error| AppError::Sftp(error.to_string()))?;
+    let total = source
+        .metadata()
+        .await
+        .ok()
+        .and_then(|metadata| metadata.size)
+        .unwrap_or(0);
+    on_progress(0, total);
     let mut destination = File::create(local).await?;
-    io::copy(&mut source, &mut destination).await?;
+    let mut copied: u64 = 0;
+    let mut buffer = vec![0u8; 64 * 1024];
+    loop {
+        let read = io::AsyncReadExt::read(&mut source, &mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        destination.write_all(&buffer[..read]).await?;
+        copied += read as u64;
+        on_progress(copied, total);
+    }
     destination.flush().await?;
     Ok(())
 }
 
-pub async fn upload(session: &SftpSession, local: &PathBuf, remote: &str) -> AppResult<()> {
+pub async fn upload<F>(session: &SftpSession, local: &PathBuf, remote: &str, on_progress: F) -> AppResult<()>
+where
+    F: Fn(u64, u64),
+{
     let mut source = File::open(local).await?;
+    let total = source.metadata().await.map(|meta| meta.len()).unwrap_or(0);
+    on_progress(0, total);
     let mut destination = session
         .open_with_flags(
             remote,
@@ -52,7 +87,19 @@ pub async fn upload(session: &SftpSession, local: &PathBuf, remote: &str) -> App
         )
         .await
         .map_err(|error| AppError::Sftp(error.to_string()))?;
-    io::copy(&mut source, &mut destination).await?;
+    let mut copied: u64 = 0;
+    let mut buffer = vec![0u8; 64 * 1024];
+    loop {
+        let read = io::AsyncReadExt::read(&mut source, &mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        io::AsyncWriteExt::write_all(&mut destination, &buffer[..read])
+            .await
+            .map_err(|error| AppError::Sftp(error.to_string()))?;
+        copied += read as u64;
+        on_progress(copied, total);
+    }
     destination.flush().await?;
     destination
         .shutdown()
