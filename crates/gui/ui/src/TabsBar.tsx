@@ -93,6 +93,7 @@ export default function TabsBar({ tabs, activeId, onSelect, onClose, onReorder, 
             onDragStart={(event) => {
               dragId.current = tab.id;
               event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', tab.id);
               event.currentTarget.classList.add('dragging');
             }}
             onDragEnd={(event) => {

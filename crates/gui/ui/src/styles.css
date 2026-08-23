@@ -1625,6 +1625,8 @@ h3 {
   cursor: pointer;
   font: inherit;
   font-size: var(--font-sm);
+  user-select: none;
+  -webkit-user-select: none;
   white-space: nowrap;
   user-select: none;
   transition: border-color var(--transition), background var(--transition),
