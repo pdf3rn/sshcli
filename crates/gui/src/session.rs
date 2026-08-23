@@ -93,14 +93,28 @@ pub async fn ssh_connect_adhoc(
 ) -> Result<String, String> {
     let (username, host, port) = parse_adhoc_target(&target)?;
     let display = format!("{username}@{host}");
-    let options =
-        ssh::options_adhoc(host, port, username, password).map_err(|error| error.to_string())?;
-    let channel = ssh::open_shell(options, columns, rows)
-        .await
-        .map_err(|error| error.to_string())?;
+    let has_password = password.is_some();
+
+    let options = match ssh::options_adhoc(host, port, username, password) {
+        Ok(options) => options,
+        Err(_) if !has_password => return Err(PASSWORD_REQUIRED.into()),
+        Err(error) => return Err(error.to_string()),
+    };
+    let channel = match ssh::open_shell(options, columns, rows).await {
+        Ok(channel) => channel,
+        Err(error)
+            if !has_password
+                && matches!(error, sshcli_core::error::AppError::AuthenticationFailed) =>
+        {
+            return Err(PASSWORD_REQUIRED.into());
+        }
+        Err(error) => return Err(error.to_string()),
+    };
 
     register_session(&app, &state, display, channel).await
 }
+
+pub const PASSWORD_REQUIRED: &str = "sshcli:password-required";
 
 fn parse_adhoc_target(target: &str) -> Result<(String, String, u16), String> {
     const HINT: &str = "formato esperado usuario@host[:puerto]";

@@ -25,6 +25,8 @@ function formatLastUsed(secs: number | null): string {
 
 const RECENT_LIMIT = 6;
 
+const PASSWORD_REQUIRED = 'sshcli:password-required';
+
 export default function HomeView({
   profiles,
   liveProfiles,
@@ -39,6 +41,8 @@ export default function HomeView({
   const [heroTarget, setHeroTarget] = useState('');
   const [heroPassword, setHeroPassword] = useState('');
   const [heroError, setHeroError] = useState<string | null>(null);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const recents = [...profiles]
@@ -115,11 +119,21 @@ export default function HomeView({
       return;
     }
     try {
-      await onConnectAdhoc(target, heroPassword || undefined);
+      await onConnectAdhoc(target, passwordVisible ? heroPassword || undefined : undefined);
       setHeroTarget('');
       setHeroPassword('');
+      setPasswordVisible(false);
     } catch (reason) {
-      setHeroError(String(reason));
+      const message = String(reason);
+      if (!passwordVisible && message.includes(PASSWORD_REQUIRED)) {
+        setPasswordVisible(true);
+        setHeroError('Este servidor requiere contraseña.');
+        requestAnimationFrame(() => passwordRef.current?.focus());
+      } else if (message.includes(PASSWORD_REQUIRED)) {
+        setHeroError('Contraseña incorrecta o credenciales rechazadas.');
+      } else {
+        setHeroError(message);
+      }
     }
   };
 
@@ -161,15 +175,21 @@ export default function HomeView({
               Conectar
             </button>
           </div>
-          <input
-            type="password"
-            className="hero-password"
-            value={heroPassword}
-            placeholder="Contraseña (opcional si tienes clave en ~/.ssh)"
-            aria-label="Contraseña para conexión rápida"
-            autoComplete="off"
-            onChange={(event) => setHeroPassword(event.target.value)}
-          />
+          {passwordVisible && (
+            <input
+              ref={passwordRef}
+              type="password"
+              className="hero-password"
+              value={heroPassword}
+              placeholder="Contraseña requerida por el servidor"
+              aria-label="Contraseña para conexión rápida"
+              autoComplete="current-password"
+              onChange={(event) => {
+                setHeroPassword(event.target.value);
+                setHeroError(null);
+              }}
+            />
+          )}
           {heroError && (
             <p className="hero-error" role="alert">
               {heroError}
