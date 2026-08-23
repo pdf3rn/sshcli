@@ -21,6 +21,7 @@ function App() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [splitId, setSplitId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
 
   const tabsRef = useRef<Tab[]>([]);
   tabsRef.current = tabs;
@@ -33,7 +34,8 @@ function App() {
     () =>
       invoke<Profile[]>('list_profiles')
         .then(setProfiles)
-        .catch((reason) => setError(String(reason))),
+        .catch((reason) => setError(String(reason)))
+        .finally(() => setProfilesLoaded(true)),
     [],
   );
 
@@ -223,7 +225,15 @@ function App() {
           </button>
         </div>
         <p className="muted small">Conexiones ({profiles.length})</p>
-        {profiles.length === 0 && <p className="muted empty">No hay perfiles todavía.</p>}
+        {!profilesLoaded ? (
+          <ul className="profiles" aria-busy="true" aria-label="Cargando conexiones">
+            {[0, 1, 2].map((index) => (
+              <li key={index} className="profile-skeleton shimmer" aria-hidden="true" />
+            ))}
+          </ul>
+        ) : profiles.length === 0 ? (
+          <p className="muted empty">No hay perfiles todavía.</p>
+        ) : (
         <ul className="profiles">
           {profiles.map((profile) => {
             const liveSessions = terminalTabs.filter(
@@ -297,7 +307,8 @@ function App() {
               </li>
             );
           })}
-        </ul>
+          </ul>
+        )}
       </aside>
 
       <div className="main">

@@ -2,6 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import PromptDialog from './PromptDialog';
 
+const SKELETON_WIDTHS = ['85%', '70%', '92%', '60%', '78%', '88%'];
+
+function PaneSkeletons() {
+  return (
+    <>
+      {SKELETON_WIDTHS.map((width, index) => (
+        <li key={index} className="pane-skeleton shimmer" style={{ width }} aria-hidden="true" />
+      ))}
+    </>
+  );
+}
+
 type Entry = { name: string; kind?: string; is_dir: boolean; size: number };
 type Props = { profile: string; onClose: () => void };
 type DialogState = { kind: 'mkdir' } | { kind: 'delete'; entry: Entry };
@@ -85,11 +97,14 @@ export default function SftpPanel({ profile, onClose }: Props) {
   const [localEntries, setLocalEntries] = useState<Entry[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadingRemote, setLoadingRemote] = useState(true);
+  const [loadingLocal, setLoadingLocal] = useState(true);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const mounted = useRef(true);
 
   const refreshRemote = useCallback(
     async (id: string, path: string) => {
+      setLoadingRemote(true);
       try {
         const entries = await invoke<Entry[]>('sftp_list_dir', { id, path });
         if (mounted.current) {
@@ -98,12 +113,15 @@ export default function SftpPanel({ profile, onClose }: Props) {
         }
       } catch (reason) {
         if (mounted.current) setMessage(String(reason));
+      } finally {
+        if (mounted.current) setLoadingRemote(false);
       }
     },
     [],
   );
 
   const refreshLocal = useCallback(async (path: string) => {
+    setLoadingLocal(true);
     try {
       const entries = await invoke<Entry[]>('list_local_dir', { path });
       if (mounted.current) {
@@ -112,6 +130,8 @@ export default function SftpPanel({ profile, onClose }: Props) {
       }
     } catch (reason) {
       if (mounted.current) setMessage(String(reason));
+    } finally {
+      if (mounted.current) setLoadingLocal(false);
     }
   }, []);
 
@@ -249,17 +269,25 @@ export default function SftpPanel({ profile, onClose }: Props) {
             </button>
             <input value={localPath} readOnly className="pane-path" aria-label="Ruta local" />
           </div>
-          <ul className="pane-list">
-            {localEntries.map((entry) => (
-              <EntryRow
-                key={entry.name}
-                entry={entry}
-                remote={false}
-                busy={busy}
-                onOpen={(item) => void openLocalDir(item.name)}
-                onTransfer={upload}
-              />
-            ))}
+          <ul className="pane-list" aria-busy={loadingLocal || undefined}>
+            {loadingLocal ? (
+              <PaneSkeletons />
+            ) : localEntries.length === 0 ? (
+              <li className="pane-empty muted small" role="status">
+                <p>Carpeta vacía</p>
+              </li>
+            ) : (
+              localEntries.map((entry) => (
+                <EntryRow
+                  key={entry.name}
+                  entry={entry}
+                  remote={false}
+                  busy={busy}
+                  onOpen={(item) => void openLocalDir(item.name)}
+                  onTransfer={upload}
+                />
+              ))
+            )}
           </ul>
           <div className="pane-footer muted small">
             Clic en carpeta para abrir · ↑ sube el archivo
@@ -281,18 +309,26 @@ export default function SftpPanel({ profile, onClose }: Props) {
               + carpeta
             </button>
           </div>
-          <ul className="pane-list">
-            {remoteEntries.map((entry) => (
-              <EntryRow
-                key={entry.name}
-                entry={entry}
-                remote
-                busy={busy}
-                onOpen={(item) => void openRemoteDir(item.name)}
-                onTransfer={download}
-                onDelete={(item) => setDialog({ kind: 'delete', entry: item })}
-              />
-            ))}
+          <ul className="pane-list" aria-busy={loadingRemote || undefined}>
+            {loadingRemote ? (
+              <PaneSkeletons />
+            ) : remoteEntries.length === 0 ? (
+              <li className="pane-empty muted small" role="status">
+                <p>Carpeta vacía</p>
+              </li>
+            ) : (
+              remoteEntries.map((entry) => (
+                <EntryRow
+                  key={entry.name}
+                  entry={entry}
+                  remote
+                  busy={busy}
+                  onOpen={(item) => void openRemoteDir(item.name)}
+                  onTransfer={download}
+                  onDelete={(item) => setDialog({ kind: 'delete', entry: item })}
+                />
+              ))
+            )}
           </ul>
           <div className="pane-footer muted small">
             Clic en carpeta para abrir · clic en archivo para descargar

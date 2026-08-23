@@ -95,6 +95,63 @@ body {
   border: 0;
 }
 
+/* ---------- Estados de carga ---------- */
+
+.shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--surface-alt) 40%,
+    #242e42 50%,
+    var(--surface-alt) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.pane-skeleton {
+  list-style: none;
+  height: 26px;
+  margin: var(--space-1) var(--space-2);
+}
+
+.profile-skeleton {
+  list-style: none;
+  height: 58px;
+}
+
+.pane-empty {
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pane-empty p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+  }
+}
+
 .app {
   display: flex;
   height: 100%;
