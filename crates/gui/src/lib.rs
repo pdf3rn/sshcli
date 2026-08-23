@@ -1,9 +1,11 @@
 mod commands;
 mod session;
+mod sftp_session;
 
 pub fn run() {
     tauri::Builder::default()
         .manage(session::init_state())
+        .manage(sftp_session::init_state())
         .invoke_handler(tauri::generate_handler![
             commands::list_profiles,
             commands::list_identity_keys,
@@ -15,6 +17,17 @@ pub fn run() {
             session::ssh_resize,
             session::ssh_list,
             session::ssh_close,
+            sftp_session::sftp_connect,
+            sftp_session::sftp_close,
+            sftp_session::sftp_list_dir,
+            sftp_session::sftp_pwd,
+            sftp_session::sftp_download,
+            sftp_session::sftp_upload,
+            sftp_session::sftp_mkdir,
+            sftp_session::sftp_rm_file,
+            sftp_session::sftp_rm_dir,
+            sftp_session::list_local_dir,
+            sftp_session::local_home,
         ])
         .run(tauri::generate_context!())
         .expect("error while running sshcli");

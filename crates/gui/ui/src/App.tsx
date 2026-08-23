@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
+import SftpPanel from './SftpPanel';
 import TerminalTab from './TerminalTab';
 import './styles.css';
 
@@ -27,6 +28,7 @@ function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSession, setActiveSession] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [sftpProfile, setSftpProfile] = useState<string | null>(null);
 
   const refresh = useCallback(
     () =>
@@ -150,7 +152,10 @@ function App() {
               <button
                 key={session.id}
                 className={`tab ${session.id === activeSession ? 'tab-active' : ''}`}
-                onClick={() => setActiveSession(session.id)}
+                onClick={() => {
+                  setSftpProfile(null);
+                  setActiveSession(session.id);
+                }}
               >
                 {session.profile}
               </button>
@@ -158,7 +163,9 @@ function App() {
           </div>
         )}
 
-        {activeSessionObj ? (
+        {sftpProfile ? (
+          <SftpPanel profile={sftpProfile} onClose={() => setSftpProfile(null)} />
+        ) : activeSessionObj ? (
           <TerminalTab
             sessionId={activeSessionObj.id}
             profile={activeSessionObj.profile}
@@ -179,9 +186,21 @@ function App() {
               <dt>Clave</dt>
               <dd>{selectedProfile.identity_file ?? '—'}</dd>
             </dl>
-            <button className="btn primary connect" disabled={connecting} onClick={() => connect(selectedProfile.name)}>
-              {connecting ? 'Conectando…' : 'Conectar'}
-            </button>
+            <div className="detail-actions">
+              <button
+                className="btn primary connect"
+                disabled={connecting}
+                onClick={() => connect(selectedProfile.name)}
+              >
+                {connecting ? 'Conectando…' : 'Conectar'}
+              </button>
+              <button
+                className="btn connect"
+                onClick={() => setSftpProfile(selectedProfile.name)}
+              >
+                SFTP
+              </button>
+            </div>
           </div>
         ) : (
           <div className="details">

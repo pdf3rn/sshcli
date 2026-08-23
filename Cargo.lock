@@ -3960,6 +3960,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "russh",
+ "russh-sftp",
  "serde",
  "serde_json",
  "sshcli-core",
