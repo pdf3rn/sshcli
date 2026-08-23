@@ -54,7 +54,7 @@ export default function TunnelPanel({ profile, onClose }: Props) {
       <div className="sftp-header">
         <span className="terminal-dot" />
         <span className="terminal-title">Túneles · {profile}</span>
-        <button className="terminal-close" onClick={onClose}>
+        <button className="terminal-close" aria-label={`Cerrar túneles de ${profile}`} onClick={onClose}>
           ✕
         </button>
       </div>

@@ -218,7 +218,7 @@ function App() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1 className="brand">sshcli</h1>
-          <button className="icon-btn" title="Nueva conexión" onClick={openCreate}>
+          <button className="icon-btn" title="Nueva conexión" aria-label="Nueva conexión" onClick={openCreate}>
             +
           </button>
         </div>
@@ -233,18 +233,42 @@ function App() {
               <li
                 key={profile.name}
                 className={`profile ${selected === profile.name ? 'active' : ''}`}
-                onClick={() => setSelected(profile.name)}
-                onDoubleClick={() => void connect(profile.name)}
-                title="Doble clic para conectar"
               >
-                <span className="profile-row">
+                <button
+                  type="button"
+                  className="profile-select"
+                  onClick={() => setSelected(profile.name)}
+                  onDoubleClick={() => void connect(profile.name)}
+                >
                   <span className="profile-name">
-                    {liveSessions > 0 && <span className="live-dot" />}
+                    {liveSessions > 0 && <span className="live-dot" aria-hidden="true" />}
                     {profile.name}
                     {liveSessions > 1 && ` ·${liveSessions}`}
+                    {liveSessions > 0 && (
+                      <span className="sr-only">
+                        {' '}({liveSessions === 1 ? '1 sesión activa' : `${liveSessions} sesiones activas`})
+                      </span>
+                    )}
                   </span>
+                  <span className="profile-endpoint">
+                    {profile.username}@{profile.host}:{profile.port}
+                  </span>
+                </button>
+                <div className="profile-actions">
                   <button
+                    type="button"
+                    className="icon-btn small profile-connect"
+                    aria-label={`Conectar a ${profile.name}`}
+                    title="Conectar"
+                    disabled={connecting}
+                    onClick={() => void connect(profile.name)}
+                  >
+                    →
+                  </button>
+                  <button
+                    type="button"
                     className="icon-btn small"
+                    aria-label={`Editar ${profile.name}`}
                     title="Editar"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -254,7 +278,13 @@ function App() {
                     ✎
                   </button>
                   <button
+                    type="button"
                     className={`icon-btn small ${confirmDelete === profile.name ? 'danger' : ''}`}
+                    aria-label={
+                      confirmDelete === profile.name
+                        ? `Confirmar borrado de ${profile.name}`
+                        : `Borrar ${profile.name}`
+                    }
                     title={confirmDelete === profile.name ? 'Confirmar borrado' : 'Borrar'}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -263,10 +293,7 @@ function App() {
                   >
                     {confirmDelete === profile.name ? '✓' : '✕'}
                   </button>
-                </span>
-                <span className="profile-endpoint">
-                  {profile.username}@{profile.host}:{profile.port}
-                </span>
+                </div>
               </li>
             );
           })}
@@ -387,9 +414,17 @@ function App() {
             ))}
 
           {error && (
-            <button className="toast error" onClick={() => setError(null)}>
-              {error} (cerrar)
-            </button>
+            <div className="toast error" role="alert">
+              <span className="toast-message">{error}</span>
+              <button
+                type="button"
+                className="toast-close"
+                aria-label="Descartar error"
+                onClick={() => setError(null)}
+              >
+                ✕
+              </button>
+            </div>
           )}
         </main>
       </div>

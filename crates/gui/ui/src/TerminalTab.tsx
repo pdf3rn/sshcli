@@ -127,19 +127,21 @@ export default function TerminalTab({
   return (
     <div className="terminal-tab">
       <div className="terminal-header">
-        <span className={`terminal-dot ${connected ? '' : 'dead'}`} />
+        <span className={`terminal-dot ${connected ? '' : 'dead'}`} aria-hidden="true" />
         <span className="terminal-title">
           {profile}
           {!connected && ' (desconectado)'}
         </span>
         {!connected && (
-          <button className="btn small primary" onClick={() => onReconnect(sessionId)}>
+          <button type="button" className="btn small primary" onClick={() => onReconnect(sessionId)}>
             Reconectar
           </button>
         )}
         <button
+          type="button"
           className="terminal-close"
           title="Cerrar pestaña"
+          aria-label={`Cerrar sesión ${profile}`}
           onClick={() => {
             invoke('ssh_close', { id: sessionId }).catch(() => undefined);
             onClose(sessionId);

@@ -186,10 +186,12 @@ body {
 
 .profile {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: border-color var(--transition), background var(--transition);
 }
 
@@ -199,10 +201,36 @@ body {
   background: var(--active);
 }
 
-.profile-row {
+.profile-select {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: var(--space-3) 0 var(--space-3) var(--space-3);
+  cursor: pointer;
+}
+
+.profile-actions {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  padding-right: var(--space-2);
+}
+
+.profile-connect {
+  opacity: 0;
+}
+
+.profile:hover .profile-connect,
+.profile:focus-within .profile-connect,
+.profile-connect:focus-visible {
+  opacity: 1;
 }
 
 .profile-name {
@@ -291,14 +319,34 @@ body {
   bottom: var(--space-4);
   left: var(--space-4);
   max-width: min(560px, 90%);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   border: 1px solid var(--danger);
   background: var(--danger-bg);
   color: var(--danger);
-  cursor: pointer;
   font: inherit;
   z-index: 6;
+}
+
+.toast-message {
+  flex: 1;
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--font-xs);
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.toast-close:hover {
+  color: #fff;
 }
 
 /* ---------- Modal ---------- */
@@ -322,9 +370,20 @@ body {
   border: 1px solid var(--accent);
   border-radius: var(--radius-lg);
   padding: var(--space-5) var(--space-6);
+}
+
+.modal form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.prompt-modal {
+  width: 380px;
+}
+
+.prompt-description {
+  margin: 0;
 }
 
 .modal h2 {
@@ -367,24 +426,6 @@ body {
 .field select:focus {
   outline: none;
   border-color: var(--accent);
-}
-
-.key-row {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.key-row input {
-  flex: 1;
-}
-
-.key-row button {
-  width: 40px;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  color: var(--accent);
-  border-radius: var(--radius-md);
-  cursor: pointer;
 }
 
 .hint {
@@ -462,6 +503,16 @@ body {
 
 .btn.primary:hover:not(:disabled) {
   background: #2d618f;
+}
+
+.btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: #e05555;
 }
 
 .btn.ghost {
@@ -732,15 +783,40 @@ body {
 .pane-item {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 5px var(--space-2);
+  gap: var(--space-1);
+  padding: 2px var(--space-1) 2px 0;
   border-radius: var(--radius-sm);
-  cursor: pointer;
   transition: background var(--transition);
 }
 
 .pane-item:hover {
   background: var(--surface-alt);
+}
+
+.pane-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-sm);
+  text-align: left;
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.pane-entry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pane-item .icon-btn {
+  flex-shrink: 0;
 }
 
 .pane-icon.dir {
