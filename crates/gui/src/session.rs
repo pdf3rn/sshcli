@@ -75,19 +75,74 @@ pub async fn ssh_connect(
         .await
         .map_err(|error| error.to_string())?;
 
-    let (mut reader, writer) = channel.split();
+    let id = register_session(&app, &state, profile_name.clone(), channel).await?;
 
     let _ = ProfileStore::new().touch_last_used(&profile_name);
+
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn ssh_connect_adhoc(
+    app: AppHandle,
+    state: State<'_, SessionState>,
+    target: String,
+    password: Option<String>,
+    columns: u16,
+    rows: u16,
+) -> Result<String, String> {
+    let (username, host, port) = parse_adhoc_target(&target)?;
+    let display = format!("{username}@{host}");
+    let options =
+        ssh::options_adhoc(host, port, username, password).map_err(|error| error.to_string())?;
+    let channel = ssh::open_shell(options, columns, rows)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    register_session(&app, &state, display, channel).await
+}
+
+fn parse_adhoc_target(target: &str) -> Result<(String, String, u16), String> {
+    const HINT: &str = "formato esperado usuario@host[:puerto]";
+    let (username, hostport) = target
+        .trim()
+        .split_once('@')
+        .ok_or_else(|| HINT.to_string())?;
+    if username.is_empty() || hostport.is_empty() {
+        return Err(HINT.into());
+    }
+    let (host, port) = match hostport.rsplit_once(':') {
+        Some((host, port)) => {
+            let port = port
+                .parse::<u16>()
+                .map_err(|_| format!("puerto inválido: {port}"))?;
+            (host, port)
+        }
+        None => (hostport, 22),
+    };
+    if host.is_empty() {
+        return Err(HINT.into());
+    }
+    Ok((username.to_string(), host.to_string(), port))
+}
+
+async fn register_session(
+    app: &AppHandle,
+    state: &State<'_, SessionState>,
+    display_name: String,
+    channel: russh::Channel<russh::client::Msg>,
+) -> Result<String, String> {
+    let (mut reader, writer) = channel.split();
 
     let id = {
         let mut manager = state.lock().map_err(|_| "session state poisoned")?;
         manager.next_id += 1;
-        format!("{}-{}", profile_name, manager.next_id)
+        format!("{}-{}", display_name, manager.next_id)
     };
 
     let emit_app = app.clone();
     let emit_id = id.clone();
-    let emit_profile = profile_name.clone();
+    let emit_profile = display_name.clone();
     let manager = state.inner().clone();
     let join = tokio::spawn(async move {
         while let Some(message) = reader.wait().await {
@@ -125,7 +180,7 @@ pub async fn ssh_connect(
         manager.sessions.insert(
             id.clone(),
             LiveSession {
-                profile: profile_name.clone(),
+                profile: display_name.clone(),
                 writer: Arc::new(tokio::sync::Mutex::new(writer)),
                 join,
             },
@@ -136,7 +191,7 @@ pub async fn ssh_connect(
         "ssh-status",
         StatusPayload {
             id: id.clone(),
-            profile: profile_name,
+            profile: display_name,
             status: "connected".into(),
             message: "connected".into(),
         },

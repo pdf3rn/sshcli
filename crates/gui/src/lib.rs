@@ -21,6 +21,7 @@ pub fn run() {
             commands::import_profiles,
             commands::export_profiles,
             session::ssh_connect,
+            session::ssh_connect_adhoc,
             session::ssh_write,
             session::ssh_resize,
             session::ssh_list,

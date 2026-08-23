@@ -38,6 +38,7 @@
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
+  --space-7: 32px;
 
   /* Tipografía */
   --font-xs: 12px;
@@ -618,16 +619,13 @@ h3 {
 }
 
 .home-hero {
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent-container);
-  border-radius: var(--radius-md);
-  padding: var(--space-5) var(--space-6);
+  text-align: center;
+  padding: var(--space-7) var(--space-4) var(--space-6);
 }
 
 .home-hero h2 {
   margin: 0 0 var(--space-2);
-  font-size: 28px;
+  font-size: 32px;
   letter-spacing: -0.02em;
 }
 
@@ -642,6 +640,91 @@ h3 {
   content: '▮';
   margin-left: 4px;
   animation: caret-blink 1.2s steps(1) infinite;
+}
+
+.hero-subtitle {
+  margin: 0 auto var(--space-5);
+  max-width: 520px;
+  color: var(--muted);
+  font-size: var(--font-sm);
+}
+
+.hero-connect {
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-align: left;
+}
+
+.hero-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 5px 6px 5px var(--space-3);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.hero-input-row:focus-within {
+  border-color: var(--accent-container);
+  box-shadow: 0 0 0 1px var(--accent-container);
+}
+
+.hero-prefix {
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--accent);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.hero-target {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+}
+
+.hero-target::placeholder {
+  color: var(--muted);
+}
+
+.hero-password {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px var(--space-3);
+  color: var(--text);
+  font-size: var(--font-sm);
+  outline: none;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.hero-password::placeholder {
+  color: var(--muted);
+}
+
+.hero-password:focus {
+  border-color: var(--accent-container);
+  box-shadow: 0 0 0 1px var(--accent-container);
+}
+
+.hero-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-xs);
 }
 
 @keyframes caret-blink {

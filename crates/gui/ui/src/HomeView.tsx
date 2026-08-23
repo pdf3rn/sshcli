@@ -6,6 +6,8 @@ type Props = {
   profiles: Profile[];
   liveProfiles: ReadonlySet<string>;
   onConnect: (name: string) => void;
+  onConnectAdhoc: (target: string, password?: string) => Promise<void>;
+  connecting: boolean;
   onCreate: () => void;
   onBrowseAll: () => void;
   onImported: () => void;
@@ -27,11 +29,16 @@ export default function HomeView({
   profiles,
   liveProfiles,
   onConnect,
+  onConnectAdhoc,
+  connecting,
   onCreate,
   onBrowseAll,
   onImported,
 }: Props) {
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [heroTarget, setHeroTarget] = useState('');
+  const [heroPassword, setHeroPassword] = useState('');
+  const [heroError, setHeroError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const recents = [...profiles]
@@ -100,6 +107,22 @@ export default function HomeView({
     }
   };
 
+  const handleAdhocConnect = async () => {
+    setHeroError(null);
+    const target = heroTarget.trim();
+    if (!target.includes('@') || target.startsWith('@') || target.endsWith('@')) {
+      setHeroError('Formato esperado: usuario@host[:puerto]');
+      return;
+    }
+    try {
+      await onConnectAdhoc(target, heroPassword || undefined);
+      setHeroTarget('');
+      setHeroPassword('');
+    } catch (reason) {
+      setHeroError(String(reason));
+    }
+  };
+
   return (
     <section className="home-view" aria-labelledby="home-title">
       <div className="home-hero">
@@ -107,9 +130,52 @@ export default function HomeView({
         <p className="hero-prompt" aria-hidden="true">
           root@sshcli:~# await connections
         </p>
-        <p className="muted">
+        <p className="hero-subtitle">
           Tus conexiones SSH, SFTP y túneles en un único espacio de trabajo.
         </p>
+        <form
+          className="hero-connect"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleAdhocConnect();
+          }}
+        >
+          <div className="hero-input-row">
+            <span className="hero-prefix" aria-hidden="true">
+              root@sshcli:~#
+            </span>
+            <input
+              type="text"
+              className="hero-target"
+              value={heroTarget}
+              placeholder="usuario@host:puerto"
+              aria-label="Conexión rápida usuario@host"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => {
+                setHeroTarget(event.target.value);
+                setHeroError(null);
+              }}
+            />
+            <button type="submit" className="btn primary small" disabled={connecting}>
+              Conectar
+            </button>
+          </div>
+          <input
+            type="password"
+            className="hero-password"
+            value={heroPassword}
+            placeholder="Contraseña (opcional si tienes clave en ~/.ssh)"
+            aria-label="Contraseña para conexión rápida"
+            autoComplete="off"
+            onChange={(event) => setHeroPassword(event.target.value)}
+          />
+          {heroError && (
+            <p className="hero-error" role="alert">
+              {heroError}
+            </p>
+          )}
+        </form>
       </div>
 
       {favorites.length > 0 && (

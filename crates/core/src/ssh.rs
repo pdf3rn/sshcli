@@ -62,6 +62,46 @@ pub fn options_for_profile(
     })
 }
 
+fn default_identity_file() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    ["id_ed25519", "id_ecdsa", "id_rsa"]
+        .into_iter()
+        .map(|name| format!("{home}/.ssh/{name}"))
+        .find(|path| Path::new(path).exists())
+}
+
+pub fn options_adhoc(
+    host: String,
+    port: u16,
+    username: String,
+    password: Option<String>,
+) -> AppResult<ConnectionOptions> {
+    let authentication;
+    let mut identity_file = None;
+    match password {
+        Some(password) => authentication = Authentication::Password(password),
+        None => {
+            let key_path = default_identity_file().ok_or_else(|| {
+                AppError::Credential(
+                    "sin contraseña y sin clave por defecto en ~/.ssh; indica una contraseña"
+                        .into(),
+                )
+            })?;
+            identity_file = Some(key_path);
+            authentication = Authentication::PrivateKey(None);
+        }
+    }
+
+    Ok(ConnectionOptions {
+        host,
+        port,
+        username,
+        identity_file,
+        accept_unknown_host_key: true,
+        authentication,
+    })
+}
+
 pub async fn open_shell(
     options: ConnectionOptions,
     columns: u16,

@@ -98,6 +98,32 @@ function App() {
     }
   }, []);
 
+  const adhocLabel = (target: string) => {
+    const at = target.indexOf('@');
+    const host = target.slice(at + 1).split(':')[0];
+    return `${target.slice(0, at)}@${host}`;
+  };
+
+  const connectAdhoc = useCallback(async (target: string, password?: string) => {
+    setConnecting(true);
+    try {
+      const id = await invoke<string>('ssh_connect_adhoc', {
+        target,
+        password,
+        columns: 120,
+        rows: 40,
+      });
+      setTabs((current) => [
+        ...current,
+        { kind: 'terminal', id, profile: adhocLabel(target), connected: true },
+      ]);
+      setActiveTabId(id);
+      setView('session');
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
   const closeTab = useCallback((id: string) => {
     const current = tabsRef.current;
     const index = current.findIndex((tab) => tab.id === id);
@@ -248,6 +274,8 @@ function App() {
             profiles={profiles}
             liveProfiles={liveProfileNames}
             onConnect={(name) => void connect(name)}
+            onConnectAdhoc={connectAdhoc}
+            connecting={connecting}
             onCreate={openCreate}
             onBrowseAll={() => setView('connections')}
             onImported={refresh}
@@ -343,7 +371,11 @@ function App() {
         canSplit={canSplit}
         splitActive={splitId !== null}
         onToggleSplit={toggleSplit}
-        telemetryAvailable={activeTab?.kind === 'terminal' && prefs.telemetryEnabled === true}
+        telemetryAvailable={
+          activeTab?.kind === 'terminal' &&
+          prefs.telemetryEnabled === true &&
+          profiles.some((profile) => profile.name === activeTab.profile)
+        }
         telemetryOpen={prefs.telemetryPanelOpen}
         onToggleTelemetry={() => updatePrefs({ telemetryPanelOpen: !prefs.telemetryPanelOpen })}
       />
