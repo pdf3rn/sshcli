@@ -7,7 +7,6 @@ import HomeView from './HomeView';
 import SettingsView from './SettingsView';
 import SftpPanel from './SftpPanel';
 import TelemetryPanel from './TelemetryPanel';
-import { ActivityIcon, ColumnsIcon, PlusIcon, XIcon } from './icons';
 import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
 import TerminalTab from './TerminalTab';
@@ -270,67 +269,6 @@ function App() {
         {view === 'session' && (
           <>
       <div className="main">
-        <div className="topbar">
-          <div className="topbar-tools">
-            <button
-              type="button"
-              className="icon-btn"
-              title="Nueva conexión"
-              aria-label="Nueva conexión"
-              onClick={openCreate}
-            >
-              <PlusIcon />
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={!canSplit}
-              aria-label={
-                canSplit
-                  ? splitId
-                    ? 'Volver a un solo panel'
-                    : 'Dividir en dos paneles'
-                  : 'Abre al menos dos sesiones para dividir'
-              }
-              title={
-                canSplit
-                  ? splitId
-                    ? 'Volver a un solo panel'
-                    : 'Dividir en dos paneles'
-                  : 'Abre al menos dos sesiones para dividir'
-              }
-              onClick={toggleSplit}
-            >
-              <ColumnsIcon />
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={!activeTab}
-              title="Cerrar pestaña"
-              aria-label="Cerrar pestaña"
-              onClick={() => activeTab && closeTab(activeTab.id)}
-            >
-              <XIcon />
-            </button>
-            {activeTab?.kind === 'terminal' && prefs.telemetryEnabled && (
-              <button
-                type="button"
-                className={`icon-btn telemetry-toggle ${prefs.telemetryPanelOpen ? 'on' : ''}`}
-                aria-pressed={prefs.telemetryPanelOpen}
-                title={prefs.telemetryPanelOpen ? 'Ocultar telemetría' : 'Mostrar telemetría'}
-                aria-label={prefs.telemetryPanelOpen ? 'Ocultar telemetría' : 'Mostrar telemetría'}
-                onClick={() =>
-                  updatePrefs({ telemetryPanelOpen: !prefs.telemetryPanelOpen })
-                }
-              >
-                <ActivityIcon />
-              </button>
-            )}
-          </div>
-          {connecting && <span className="muted small topbar-note">Conectando…</span>}
-        </div>
-
         {tabs.length > 0 && (
           <TabsBar
             tabs={tabs}
@@ -397,7 +335,16 @@ function App() {
         )}
       </div>
 
-      <StatusBar liveSessions={liveSessions} />
+      <StatusBar
+        liveSessions={liveSessions}
+        connecting={connecting}
+        canSplit={canSplit}
+        splitActive={splitId !== null}
+        onToggleSplit={toggleSplit}
+        telemetryAvailable={activeTab?.kind === 'terminal' && prefs.telemetryEnabled === true}
+        telemetryOpen={prefs.telemetryPanelOpen}
+        onToggleTelemetry={() => updatePrefs({ telemetryPanelOpen: !prefs.telemetryPanelOpen })}
+      />
 
       {modal.open && (
         <ProfileModal

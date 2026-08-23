@@ -1056,33 +1056,6 @@ h3 {
   background: var(--bg);
 }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.topbar-tools {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.topbar .icon-btn {
-  color: var(--muted);
-  background: transparent;
-  border-color: transparent;
-}
-
-.topbar .icon-btn:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--border);
-  background: var(--surface-alt);
-}
-
 .icon-btn.telemetry-toggle.on,
 .btn[aria-pressed='true'] {
   color: var(--accent);
@@ -1097,12 +1070,30 @@ h3 {
   border-color: var(--accent);
 }
 
-.topbar-hint {
-  margin-left: auto;
+.statusbar-left {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.topbar-note {
-  margin-left: var(--space-1);
+.statusbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.statusbar .icon-btn {
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.statusbar .icon-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--border);
+  background: var(--surface-alt);
 }
 
 .content {
