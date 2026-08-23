@@ -167,8 +167,13 @@ export default function HomeView({
               autoComplete="off"
               spellCheck={false}
               onChange={(event) => {
-                setHeroTarget(event.target.value);
+                const value = event.target.value;
+                setHeroTarget(value);
                 setHeroError(null);
+                if (!value.trim()) {
+                  setPasswordVisible(false);
+                  setHeroPassword('');
+                }
               }}
             />
             <button type="submit" className="btn primary small" disabled={connecting}>
