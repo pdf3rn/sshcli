@@ -52,15 +52,15 @@ struct StatusPayload {
     message: String,
 }
 
-fn login_argv0(path: &str) -> String {
+fn login_args(path: &str) -> &'static [&'static str] {
     let name = PathBuf::from(path)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string());
-    if name.is_empty() {
-        return path.to_string();
+        .unwrap_or_default();
+    match name.as_str() {
+        "bash" | "zsh" | "fish" | "ksh" | "mksh" => &["-l"],
+        _ => &[],
     }
-    format!("-{name}")
 }
 
 #[tauri::command]
@@ -105,8 +105,8 @@ pub fn local_shell_start(
         .map_err(|error| error.to_string())?;
 
     let mut command = CommandBuilder::new(&shell_str);
-    if let Some(first) = command.get_argv_mut().first_mut() {
-        *first = std::ffi::OsString::from(login_argv0(&shell_str));
+    for arg in login_args(&shell_str) {
+        command.arg(arg);
     }
     command.cwd(home);
     command.env("TERM", "xterm-256color");
@@ -257,4 +257,44 @@ pub fn local_close(state: State<'_, LocalShellState>, id: String) -> Result<(), 
         .shells
         .remove(&id);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    #[test]
+    fn spawns_local_shell_in_pty() {
+        let shell = shells::detect_shell().expect("debe detectar un shell local");
+        let pty_system = native_pty_system();
+        let pair = pty_system
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .expect("openpty");
+        let path = shell.display().to_string();
+        let mut command = CommandBuilder::new(&path);
+        for arg in login_args(&path) {
+            command.arg(arg);
+        }
+        let mut child = pair.slave.spawn_command(command).expect("spawn del shell");
+        drop(pair.slave);
+        let mut reader = pair.master.try_clone_reader().expect("reader");
+
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut buffer = [0u8; 4096];
+            let n = reader.read(&mut buffer).unwrap_or(0);
+            let _ = tx.send(n);
+        });
+        let n = rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap_or(0);
+        assert!(n > 0, "el shell debería emitir prompt/banner al arrancar");
+        let _ = child.kill();
+    }
 }
