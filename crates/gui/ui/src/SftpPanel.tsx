@@ -91,18 +91,6 @@ function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete }: RowProp
             {remote ? '↓' : '↑'}
           </button>
         )}
-        {!entry.is_dir && (
-          <button
-            type="button"
-            className="icon-btn small"
-            disabled={busy}
-            aria-label={`${action} ${entry.name}`}
-            title={action}
-            onClick={() => onTransfer(entry)}
-          >
-            {remote ? '↓' : '↑'}
-          </button>
-        )}
         {remote && onDelete && (
           <button
             type="button"
