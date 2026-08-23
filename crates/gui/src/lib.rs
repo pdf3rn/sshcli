@@ -14,6 +14,7 @@ pub fn run() {
             commands::create_profile,
             commands::update_profile,
             commands::delete_profile,
+            commands::touch_last_used,
             session::ssh_connect,
             session::ssh_write,
             session::ssh_resize,

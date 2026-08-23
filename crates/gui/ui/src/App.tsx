@@ -193,6 +193,9 @@ function App() {
   }, [connect, closeTab, cycleTabs]);
 
   const selectedProfile = profiles.find((profile) => profile.name === selected) ?? null;
+  const knownGroups = Array.from(
+    new Set(profiles.map((profile) => profile.group).filter((group): group is string => !!group)),
+  ).sort();
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const terminalTabs = tabs.filter((tab): tab is Extract<Tab, { kind: 'terminal' }> => tab.kind === 'terminal');
 
@@ -482,6 +485,7 @@ function App() {
       {modal.open && (
         <ProfileModal
           editing={modal.editing}
+          knownGroups={knownGroups}
           onClose={() => setModal({ open: false, editing: null })}
           onSaved={() => {
             setModal({ open: false, editing: null });

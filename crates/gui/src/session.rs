@@ -77,6 +77,8 @@ pub async fn ssh_connect(
 
     let (mut reader, writer) = channel.split();
 
+    let _ = ProfileStore::new().touch_last_used(&profile_name);
+
     let id = {
         let mut manager = state.lock().map_err(|_| "session state poisoned")?;
         manager.next_id += 1;

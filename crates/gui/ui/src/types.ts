@@ -8,6 +8,9 @@ export type Profile = {
   identity_file: string | null;
   authentication: 'None' | 'Password' | 'PrivateKey';
   accept_unknown_host_key: boolean;
+  group: string | null;
+  tags: string[];
+  last_used: number | null;
 };
 
 export type Tab =

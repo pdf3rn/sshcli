@@ -26,6 +26,10 @@ pub struct ProfileInput {
     pub identity_file: Option<String>,
     pub authentication: String,
     pub accept_unknown_host_key: bool,
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
     pub secret: Option<String>,
 }
 
@@ -54,6 +58,9 @@ impl ProfileInput {
                 identity_file,
                 authentication,
                 accept_unknown_host_key: self.accept_unknown_host_key,
+                group: self.group.filter(|group| !group.is_empty()),
+                tags: self.tags.unwrap_or_default(),
+                last_used: None,
             },
             self.secret,
         ))
@@ -84,7 +91,13 @@ pub fn create_profile(input: ProfileInput) -> Result<(), String> {
 #[tauri::command]
 pub fn update_profile(input: ProfileInput) -> Result<(), String> {
     let store = ProfileStore::new();
-    let (profile, secret) = input.into_profile()?;
+    let previous_last_used = store
+        .load()
+        .ok()
+        .and_then(|profiles| profiles.into_iter().find(|p| p.name == input.name))
+        .and_then(|profile| profile.last_used);
+    let (mut profile, secret) = input.into_profile()?;
+    profile.last_used = previous_last_used;
     let _ = credentials::delete(&profile.name);
     if let Some(secret) = profile_secret(&profile, secret) {
         credentials::set(&profile.name, &secret).map_err(|error| error.to_string())?;
@@ -101,6 +114,13 @@ pub fn delete_profile(name: String) -> Result<(), String> {
     store.remove(&name).map_err(|error| error.to_string())?;
     let _ = credentials::delete(&name);
     Ok(())
+}
+
+#[tauri::command]
+pub fn touch_last_used(name: String) -> Result<(), String> {
+    ProfileStore::new()
+        .touch_last_used(&name)
+        .map_err(|error| error.to_string())
 }
 
 fn profile_secret(profile: &Profile, supplied: Option<String>) -> Option<String> {

@@ -16,6 +16,12 @@ pub struct Profile {
     pub identity_file: Option<String>,
     pub authentication: Authentication,
     pub accept_unknown_host_key: bool,
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub last_used: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -86,11 +92,24 @@ impl ProfileStore {
         self.save(&profiles)?;
         Ok(removed)
     }
+
+    pub fn touch_last_used(&self, name: &str) -> AppResult<()> {
+        let mut profiles = self.load()?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        if let Some(profile) = profiles.iter_mut().find(|profile| profile.name == name) {
+            profile.last_used = Some(now);
+        }
+        self.save(&profiles)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Authentication, Profile};
+    use serde::Deserialize;
 
     #[test]
     fn profile_serialization_contains_no_secret_field() {
@@ -102,9 +121,34 @@ mod tests {
             identity_file: Some("~/.ssh/id_ed25519".into()),
             authentication: Authentication::PrivateKey,
             accept_unknown_host_key: false,
+            group: Some("Production".into()),
+            tags: vec!["web".into()],
+            last_used: Some(1_700_000_000),
         };
         let serialized = toml::to_string(&profile).unwrap();
         assert!(!serialized.contains("password"));
         assert!(!serialized.contains("secret"));
+    }
+
+    #[test]
+    fn profile_deserializes_without_optional_fields() {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            profiles: Vec<Profile>,
+        }
+        let legacy = r#"
+            [[profiles]]
+            name = "legacy"
+            host = "example.com"
+            port = 22
+            username = "deploy"
+            authentication = "None"
+            accept_unknown_host_key = false
+        "#;
+        let parsed = toml::from_str::<Wrapper>(legacy).unwrap();
+        assert_eq!(parsed.profiles.len(), 1);
+        assert_eq!(parsed.profiles[0].group, None);
+        assert!(parsed.profiles[0].tags.is_empty());
+        assert_eq!(parsed.profiles[0].last_used, None);
     }
 }

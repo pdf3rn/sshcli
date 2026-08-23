@@ -1,26 +1,18 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import type { Profile as ProfileType } from './types';
 import { useDialog } from './use-dialog';
 
-type Profile = {
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  identity_file: string | null;
-  authentication: 'None' | 'Password' | 'PrivateKey';
-  accept_unknown_host_key: boolean;
-};
-
 type Props = {
-  editing: Profile | null;
+  editing: ProfileType | null;
+  knownGroups: string[];
   onClose: () => void;
   onSaved: () => void;
 };
 
 const AUTH_METHODS = ['password', 'private-key', 'none'] as const;
 
-export default function ProfileModal({ editing, onClose, onSaved }: Props) {
+export default function ProfileModal({ editing, knownGroups, onClose, onSaved }: Props) {
   const [name, setName] = useState(editing?.name ?? '');
   const [host, setHost] = useState(editing?.host ?? '');
   const [port, setPort] = useState(String(editing?.port ?? 22));
@@ -30,6 +22,8 @@ export default function ProfileModal({ editing, onClose, onSaved }: Props) {
     editing ? editing.authentication.toLowerCase() : 'password',
   );
   const [acceptHostKey, setAcceptHostKey] = useState(editing?.accept_unknown_host_key ?? false);
+  const [group, setGroup] = useState(editing?.group ?? '');
+  const [tags, setTags] = useState(editing?.tags.join(', ') ?? '');
   const [secret, setSecret] = useState('');
   const [keys, setKeys] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +45,11 @@ export default function ProfileModal({ editing, onClose, onSaved }: Props) {
       identity_file: auth === 'private-key' ? identityFile.trim() || null : null,
       authentication: auth,
       accept_unknown_host_key: acceptHostKey,
+      group: group.trim() || null,
+      tags: tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
       secret: needsSecret ? secret : null,
     };
     try {
@@ -160,6 +159,31 @@ export default function ProfileModal({ editing, onClose, onSaved }: Props) {
             />
             <span>Aceptar clave de host desconocida</span>
           </label>
+
+          <div className="field-row">
+            <label className="field">
+              <span>Grupo (opcional)</span>
+              <input
+                list="group-options"
+                value={group}
+                onChange={(event) => setGroup(event.target.value)}
+                placeholder="Production"
+              />
+              <datalist id="group-options">
+                {knownGroups.map((known) => (
+                  <option key={known} value={known} />
+                ))}
+              </datalist>
+            </label>
+            <label className="field">
+              <span>Etiquetas (separadas por coma)</span>
+              <input
+                value={tags}
+                onChange={(event) => setTags(event.target.value)}
+                placeholder="web, api"
+              />
+            </label>
+          </div>
 
           {error && <p className="form-error" role="alert">{error}</p>}
 
