@@ -9,7 +9,10 @@ description = "Termius-like desktop GUI for sshcli"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+base64 = "0.22"
+russh.workspace = true
 serde.workspace = true
+serde_json = "1"
 sshcli-core = { path = "../core" }
 tauri = { version = "2", features = [] }
 tokio.workspace = true

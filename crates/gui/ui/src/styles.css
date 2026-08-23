@@ -328,3 +328,91 @@ body {
 .btn:hover {
   border-color: var(--accent);
 }
+
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3ddc84;
+  margin-right: 6px;
+}
+
+.tabbar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.tab {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: var(--muted);
+  padding: 6px 14px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tab-active {
+  background: var(--active);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.connect {
+  margin-top: 16px;
+}
+
+.terminal-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0c0f16;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.terminal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3ddc84;
+}
+
+.terminal-title {
+  flex: 1;
+}
+
+.terminal-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.terminal-close:hover {
+  color: var(--danger);
+}
+
+.terminal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 4px;
+}
+

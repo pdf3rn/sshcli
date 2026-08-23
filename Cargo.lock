@@ -3958,7 +3958,10 @@ dependencies = [
 name = "sshcli-gui"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "russh",
  "serde",
+ "serde_json",
  "sshcli-core",
  "tauri",
  "tauri-build",
