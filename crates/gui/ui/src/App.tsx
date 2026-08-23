@@ -259,6 +259,7 @@ function App() {
             liveProfiles={liveProfileNames}
             connecting={connecting}
             onConnect={(name) => void connect(name)}
+            onOpenPanel={openPanel}
             onEdit={openEdit}
             onDelete={handleDelete}
             onToggleFavorite={(name) => {

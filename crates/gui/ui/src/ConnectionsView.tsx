@@ -6,6 +6,7 @@ type Props = {
   liveProfiles: ReadonlySet<string>;
   connecting: boolean;
   onConnect: (name: string) => void;
+  onOpenPanel: (kind: 'sftp' | 'tunnels', name: string) => void;
   onEdit: (profile: Profile) => void;
   onDelete: (name: string) => void;
   onToggleFavorite: (name: string) => void;
@@ -40,6 +41,7 @@ export default function ConnectionsView({
   liveProfiles,
   connecting,
   onConnect,
+  onOpenPanel,
   onEdit,
   onDelete,
   onToggleFavorite,
@@ -219,6 +221,24 @@ export default function ConnectionsView({
                             onClick={() => onToggleFavorite(profile.name)}
                           >
                             {profile.favorite ? '★' : '☆'}
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn small"
+                            aria-label={`Abrir SFTP de ${profile.name}`}
+                            title="Abrir SFTP"
+                            onClick={() => onOpenPanel('sftp', profile.name)}
+                          >
+                            ⇅
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn small"
+                            aria-label={`Abrir túneles de ${profile.name}`}
+                            title="Abrir túneles"
+                            onClick={() => onOpenPanel('tunnels', profile.name)}
+                          >
+                            ⇄
                           </button>
                           <button
                             type="button"
