@@ -24,9 +24,12 @@ impl SessionManager {
     }
 }
 
+type ShellHandle = Arc<russh::client::Handle<sshcli_core::ssh::ClientHandler>>;
+
 struct LiveSession {
     profile: String,
     writer: Arc<tokio::sync::Mutex<ChannelWriteHalf<Msg>>>,
+    handle: ShellHandle,
     join: JoinHandle<()>,
 }
 
@@ -71,11 +74,11 @@ pub async fn ssh_connect(
         _ => credentials::get(&profile_name).ok(),
     };
     let options = ssh::options_for_profile(&profile, secret).map_err(|error| error.to_string())?;
-    let channel = ssh::open_shell(options, columns, rows)
+    let (channel, handle) = ssh::open_shell(options, columns, rows)
         .await
         .map_err(|error| error.to_string())?;
 
-    let id = register_session(&app, &state, profile_name.clone(), channel).await?;
+    let id = register_session(&app, &state, profile_name.clone(), channel, Arc::new(handle)).await?;
 
     let _ = ProfileStore::new().touch_last_used(&profile_name);
 
@@ -101,7 +104,7 @@ pub async fn ssh_connect_adhoc(
         Err(error) => return Err(error.to_string()),
     };
     let channel = match ssh::open_shell(options, columns, rows).await {
-        Ok(channel) => channel,
+        Ok((channel, handle)) => (channel, handle),
         Err(error)
             if !has_password
                 && matches!(error, sshcli_core::error::AppError::AuthenticationFailed) =>
@@ -111,7 +114,7 @@ pub async fn ssh_connect_adhoc(
         Err(error) => return Err(error.to_string()),
     };
 
-    register_session(&app, &state, display, channel).await
+    register_session(&app, &state, display, channel.0, Arc::new(channel.1)).await
 }
 
 pub const PASSWORD_REQUIRED: &str = "sshcli:password-required";
@@ -145,6 +148,7 @@ async fn register_session(
     state: &State<'_, SessionState>,
     display_name: String,
     channel: russh::Channel<russh::client::Msg>,
+    handle: ShellHandle,
 ) -> Result<String, String> {
     let (mut reader, writer) = channel.split();
 
@@ -196,6 +200,7 @@ async fn register_session(
             LiveSession {
                 profile: display_name.clone(),
                 writer: Arc::new(tokio::sync::Mutex::new(writer)),
+                handle,
                 join,
             },
         );
@@ -225,6 +230,28 @@ async fn writer_for(
         .get(id)
         .map(|session| session.writer.clone())
         .ok_or_else(|| format!("unknown session: {id}"))
+}
+
+fn handle_for(state: &State<'_, SessionState>, id: &str) -> Result<ShellHandle, String> {
+    state
+        .lock()
+        .map_err(|_| "session state poisoned")?
+        .sessions
+        .get(id)
+        .map(|session| session.handle.clone())
+        .ok_or_else(|| format!("unknown session: {id}"))
+}
+
+#[tauri::command]
+pub async fn ssh_exec(
+    state: State<'_, SessionState>,
+    id: String,
+    command: String,
+) -> Result<String, String> {
+    let handle = handle_for(&state, &id)?;
+    ssh::collect_exec(&handle, &command)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

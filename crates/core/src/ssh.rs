@@ -10,7 +10,7 @@ use crate::{
     profiles::{Authentication as ProfileAuthentication, Profile},
 };
 
-struct ClientHandler {
+pub struct ClientHandler {
     accept_unknown_host_key: bool,
 }
 
@@ -106,7 +106,10 @@ pub async fn open_shell(
     options: ConnectionOptions,
     columns: u16,
     rows: u16,
-) -> AppResult<russh::Channel<russh::client::Msg>> {
+) -> AppResult<(
+    russh::Channel<russh::client::Msg>,
+    client::Handle<ClientHandler>,
+)> {
     let session = authenticate(options).await?;
     let channel = session.channel_open_session().await?;
     channel
@@ -121,7 +124,7 @@ pub async fn open_shell(
         )
         .await?;
     channel.request_shell(true).await?;
-    Ok(channel)
+    Ok((channel, session))
 }
 
 pub async fn open_sftp(options: ConnectionOptions) -> AppResult<russh_sftp::client::SftpSession> {
@@ -137,6 +140,25 @@ pub struct ExecSession {
     handle: client::Handle<ClientHandler>,
 }
 
+pub async fn collect_exec(
+    handle: &client::Handle<ClientHandler>,
+    command: &str,
+) -> AppResult<String> {
+    let mut channel = handle.channel_open_session().await?;
+    channel.exec(true, command).await?;
+    let mut output = Vec::new();
+    while let Some(message) = channel.wait().await {
+        match message {
+            ChannelMsg::Data { data } | ChannelMsg::ExtendedData { data, .. } => {
+                output.extend_from_slice(&data);
+            }
+            ChannelMsg::Eof | ChannelMsg::Close => break,
+            _ => {}
+        }
+    }
+    Ok(String::from_utf8_lossy(&output).into_owned())
+}
+
 impl ExecSession {
     pub async fn connect(options: ConnectionOptions) -> AppResult<Self> {
         Ok(Self {
@@ -149,19 +171,7 @@ impl ExecSession {
     }
 
     pub async fn run(&mut self, command: &str) -> AppResult<String> {
-        let mut channel = self.handle.channel_open_session().await?;
-        channel.exec(true, command).await?;
-        let mut output = Vec::new();
-        while let Some(message) = channel.wait().await {
-            match message {
-                ChannelMsg::Data { data } | ChannelMsg::ExtendedData { data, .. } => {
-                    output.extend_from_slice(&data);
-                }
-                ChannelMsg::Eof | ChannelMsg::Close => break,
-                _ => {}
-            }
-        }
-        Ok(String::from_utf8_lossy(&output).into_owned())
+        collect_exec(&self.handle, command).await
     }
 
     pub async fn disconnect(self) {}

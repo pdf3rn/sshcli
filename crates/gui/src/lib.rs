@@ -24,6 +24,7 @@ pub fn run() {
             session::ssh_connect_adhoc,
             session::ssh_write,
             session::ssh_resize,
+            session::ssh_exec,
             session::ssh_list,
             session::ssh_close,
             sftp_session::sftp_connect,

@@ -13,6 +13,8 @@ export type Prefs = {
   cursorBlink: boolean;
   telemetryEnabled: boolean;
   telemetryPanelOpen: boolean;
+  remoteExplorerEnabled: boolean;
+  remoteExplorerOpen: boolean;
 };
 
 export const FONT_OPTIONS = [
@@ -47,6 +49,8 @@ export const DEFAULT_PREFS: Prefs = {
   cursorBlink: true,
   telemetryEnabled: false,
   telemetryPanelOpen: false,
+  remoteExplorerEnabled: false,
+  remoteExplorerOpen: false,
 };
 
 const STORAGE_KEY = 'sshcli.prefs.v1';

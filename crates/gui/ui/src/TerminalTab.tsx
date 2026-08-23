@@ -7,6 +7,85 @@ import { listen } from '@tauri-apps/api/event';
 import type { Prefs } from './prefs';
 import '@xterm/xterm/css/xterm.css';
 
+const OSC7_PREFIX = [0x1b, 0x5d, 0x37, 0x3b];
+
+function createOsc7Parser(onCwd: (path: string) => void) {
+  let prefixMatch = 0;
+  let scanning = false;
+  let stNext = false;
+  let payload: number[] = [];
+  let pending: number[] = [];
+  const out: number[] = [];
+
+  const finish = () => {
+    const url = String.fromCharCode(...payload);
+    payload = [];
+    scanning = false;
+    stNext = false;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'file:' && parsed.pathname.startsWith('/')) {
+        onCwd(decodeURIComponent(parsed.pathname));
+      }
+    } catch {
+      /* secuencia malformada: ignorar */
+    }
+  };
+
+  return (chunk: Uint8Array): Uint8Array => {
+    out.length = 0;
+    for (let i = 0; i < chunk.length; i++) {
+      const byte = chunk[i];
+      if (scanning) {
+        if (stNext) {
+          stNext = false;
+          if (byte === 0x5c) {
+            finish();
+          } else {
+            payload.push(0x1b, byte);
+          }
+          continue;
+        }
+        if (byte === 0x07) {
+          finish();
+          continue;
+        }
+        if (byte === 0x1b) {
+          stNext = true;
+          continue;
+        }
+        payload.push(byte);
+        if (payload.length > 4096) {
+          payload = [];
+          scanning = false;
+        }
+        continue;
+      }
+      if (byte === OSC7_PREFIX[prefixMatch]) {
+        pending.push(byte);
+        prefixMatch += 1;
+        if (prefixMatch === OSC7_PREFIX.length) {
+          prefixMatch = 0;
+          pending = [];
+          scanning = true;
+          payload = [];
+        }
+        continue;
+      }
+      out.push(...pending);
+      pending = [];
+      if (byte === 0x1b) {
+        pending.push(byte);
+        prefixMatch = 1;
+      } else {
+        prefixMatch = 0;
+        out.push(byte);
+      }
+    }
+    return new Uint8Array(out);
+  };
+}
+
 type Props = {
   sessionId: string;
   connected: boolean;
@@ -14,6 +93,7 @@ type Props = {
   prefs: Prefs;
   onClose: (sessionId: string) => void;
   onReconnect: (sessionId: string) => void;
+  onCwd?: (sessionId: string, path: string) => void;
 };
 
 export default function TerminalTab({
@@ -23,6 +103,7 @@ export default function TerminalTab({
   prefs,
   onClose,
   onReconnect,
+  onCwd,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -33,6 +114,8 @@ export default function TerminalTab({
   const [searchQuery, setSearchQuery] = useState('');
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const onCwdRef = useRef(onCwd);
+  onCwdRef.current = onCwd;
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
 
@@ -72,6 +155,14 @@ export default function TerminalTab({
     searchRef.current = search;
 
     let disposed = false;
+
+    let lastCwd = '';
+    const stripOsc7 = createOsc7Parser((path) => {
+      if (path !== lastCwd) {
+        lastCwd = path;
+        onCwdRef.current?.(sessionId, path);
+      }
+    });
 
     const resize = () => {
       if (disposed) return;
@@ -134,7 +225,7 @@ export default function TerminalTab({
         const binary = atob(event.payload.data);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        term.write(bytes);
+        term.write(stripOsc7(bytes));
       });
       unlistenStatus = await listen<{ id: string; status: string }>('ssh-status', (event) => {
         if (event.payload.id !== sessionId || disposed) return;

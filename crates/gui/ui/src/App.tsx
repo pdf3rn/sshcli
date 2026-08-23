@@ -5,6 +5,7 @@ import ProfileModal from './ProfileModal';
 import NewConnectionModal from './NewConnectionModal';
 import ConnectionsView from './ConnectionsView';
 import HomeView from './HomeView';
+import RemoteExplorerPanel from './RemoteExplorerPanel';
 import SettingsView from './SettingsView';
 import SftpPanel from './SftpPanel';
 import TelemetryPanel from './TelemetryPanel';
@@ -30,6 +31,11 @@ function App() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [splitId, setSplitId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [tabCwds, setTabCwds] = useState<Record<string, string>>({});
+
+  const rememberCwd = useCallback((sessionId: string, path: string) => {
+    setTabCwds((current) => ({ ...current, [sessionId]: path }));
+  }, []);
   const [view, setView] = useState<View>('home');
   const [prefs, updatePrefs] = usePrefs();
 
@@ -349,6 +355,7 @@ function App() {
                 prefs={prefs}
                 onClose={closeTab}
                 onReconnect={reconnect}
+                onCwd={rememberCwd}
               />
             </div>
           ))}
@@ -359,6 +366,15 @@ function App() {
           {activeTab?.kind === 'terminal' && prefs.telemetryEnabled && prefs.telemetryPanelOpen && (
             <TelemetryPanel profile={activeTab.profile} />
           )}
+          {activeTab?.kind === 'terminal' &&
+            prefs.remoteExplorerEnabled &&
+            prefs.remoteExplorerOpen && (
+              <RemoteExplorerPanel
+                key={activeTab.id}
+                sessionId={activeTab.id}
+                cwd={tabCwds[activeTab.id]}
+              />
+            )}
           {activeTab?.kind === 'tunnels' && (
             <TunnelPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />
           )}
@@ -402,6 +418,11 @@ function App() {
         }
         telemetryOpen={prefs.telemetryPanelOpen}
         onToggleTelemetry={() => updatePrefs({ telemetryPanelOpen: !prefs.telemetryPanelOpen })}
+        explorerAvailable={activeTab?.kind === 'terminal' && prefs.remoteExplorerEnabled === true}
+        explorerOpen={prefs.remoteExplorerOpen}
+        onToggleExplorer={() =>
+          updatePrefs({ remoteExplorerOpen: !prefs.remoteExplorerOpen })
+        }
       />
 
       {modal.open && (

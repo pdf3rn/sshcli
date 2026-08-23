@@ -201,6 +201,22 @@ export default function SettingsView({ prefs, onChange }: Props) {
             <code>/proc</code> en el host remoto cada 3 segundos mientras el panel esté visible.
           </p>
         </Section>
+
+        <Section title="Explorador remoto">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={prefs.remoteExplorerEnabled}
+              onChange={(event) => onChange({ remoteExplorerEnabled: event.target.checked })}
+            />
+            <span>Mostrar explorador de carpetas en las sesiones</span>
+          </label>
+          <p className="muted small section-note">
+            Desactivado por defecto. Muestra un árbol del directorio actual del shell y sigue los{' '}
+            <code>cd</code>. Requiere que tu shell emita la secuencia OSC 7; el propio panel te da{' '}
+            el snippet para configurarlo si falta.
+          </p>
+        </Section>
       </div>
     </section>
   );

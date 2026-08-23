@@ -1003,6 +1003,195 @@ h3 {
 
 /* ---------- Panel de telemetría ---------- */
 
+.remote-explorer {
+  width: 264px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface-alt);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+}
+
+.explorer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.explorer-title {
+  font-size: var(--font-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 2px;
+  font-size: var(--font-xs);
+  background: var(--bg-elev, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-2);
+}
+
+.crumb-wrap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.crumb {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  padding: 0 1px;
+  border-radius: var(--radius-sm);
+}
+
+.crumb:hover,
+.crumb:focus-visible {
+  color: var(--text);
+}
+
+.crumb.cur {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.crumb-sep {
+  color: var(--muted);
+  opacity: 0.6;
+  margin: 0 2px;
+}
+
+.explorer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.explorer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-sm);
+  text-align: left;
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.explorer-row.static {
+  cursor: default;
+  color: var(--muted);
+}
+
+button.explorer-row:hover:not(:disabled),
+button.explorer-row:focus-visible:not(:disabled) {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+}
+
+.explorer-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.explorer-icon.dir {
+  color: var(--accent);
+}
+
+.explorer-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.snippet {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: var(--space-2) var(--space-8) var(--space-2) var(--space-2);
+  display: grid;
+  gap: 4px;
+}
+
+.snippet > code:first-child {
+  font-size: var(--font-xs);
+  color: var(--accent);
+}
+
+.snippet pre {
+  margin: 0;
+  font-size: var(--font-xs);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+}
+
+.snippet .icon-btn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+}
+
+.explorer-error {
+  color: #ffb4ab;
+  word-break: break-all;
+}
+
+.explorer-none {
+  margin-top: var(--space-2);
+}
+
+.explorer-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.explorer-skeleton span {
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: explorer-shimmer 1.2s infinite linear;
+}
+
+@keyframes explorer-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 .telemetry-panel {
   width: 264px;
   flex-shrink: 0;

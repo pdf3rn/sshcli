@@ -1,4 +1,4 @@
-import { ActivityIcon, ColumnsIcon } from './icons';
+import { ActivityIcon, ColumnsIcon, FolderIcon } from './icons';
 
 type Props = {
   liveSessions: number;
@@ -9,6 +9,9 @@ type Props = {
   telemetryAvailable: boolean;
   telemetryOpen: boolean;
   onToggleTelemetry: () => void;
+  explorerAvailable: boolean;
+  explorerOpen: boolean;
+  onToggleExplorer: () => void;
 };
 
 export default function StatusBar({
@@ -20,6 +23,9 @@ export default function StatusBar({
   telemetryAvailable,
   telemetryOpen,
   onToggleTelemetry,
+  explorerAvailable,
+  explorerOpen,
+  onToggleExplorer,
 }: Props) {
   const splitLabel = canSplit
     ? splitActive
@@ -57,6 +63,18 @@ export default function StatusBar({
         >
           <ColumnsIcon />
         </button>
+        {explorerAvailable && (
+          <button
+            type="button"
+            className={`icon-btn telemetry-toggle ${explorerOpen ? 'on' : ''}`}
+            aria-pressed={explorerOpen}
+            title={explorerOpen ? 'Ocultar explorador remoto' : 'Mostrar explorador remoto'}
+            aria-label={explorerOpen ? 'Ocultar explorador remoto' : 'Mostrar explorador remoto'}
+            onClick={onToggleExplorer}
+          >
+            <FolderIcon />
+          </button>
+        )}
         {telemetryAvailable && (
           <button
             type="button"
