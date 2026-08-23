@@ -8,15 +8,25 @@ import '@xterm/xterm/css/xterm.css';
 type Props = {
   sessionId: string;
   profile: string;
-  onClosed: (sessionId: string) => void;
+  connected: boolean;
+  visible: boolean;
+  onClose: (sessionId: string) => void;
+  onReconnect: (sessionId: string) => void;
 };
 
-export default function TerminalTab({ sessionId, profile, onClosed }: Props) {
+export default function TerminalTab({
+  sessionId,
+  profile,
+  connected,
+  visible,
+  onClose,
+  onReconnect,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const onClosedRef = useRef(onClosed);
-  onClosedRef.current = onClosed;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const term = new Terminal({
@@ -44,9 +54,6 @@ export default function TerminalTab({ sessionId, profile, onClosed }: Props) {
     if (containerRef.current) {
       term.open(containerRef.current);
     }
-    fit.fit();
-    term.focus();
-
     terminalRef.current = term;
     fitRef.current = fit;
 
@@ -54,9 +61,12 @@ export default function TerminalTab({ sessionId, profile, onClosed }: Props) {
 
     const resize = () => {
       if (disposed) return;
+      if (!containerRef.current || containerRef.current.offsetParent === null) return;
       fit.fit();
       const { cols, rows } = term;
-      invoke('ssh_resize', { id: sessionId, columns: cols, rows }).catch(() => undefined);
+      if (cols > 0 && rows > 0) {
+        invoke('ssh_resize', { id: sessionId, columns: cols, rows }).catch(() => undefined);
+      }
     };
 
     const observer = new ResizeObserver(resize);
@@ -87,7 +97,7 @@ export default function TerminalTab({ sessionId, profile, onClosed }: Props) {
         if (event.payload.id !== sessionId || disposed) return;
         if (event.payload.status === 'closed') {
           term.write('\r\n\x1b[2m[sshcli] conexión cerrada\x1b[0m\r\n');
-          onClosedRef.current(sessionId);
+          term.blur();
         }
       });
     })();
@@ -103,15 +113,38 @@ export default function TerminalTab({ sessionId, profile, onClosed }: Props) {
     };
   }, [sessionId]);
 
+  useEffect(() => {
+    if (!visible) return;
+    const frame = requestAnimationFrame(() => {
+      const fit = fitRef.current;
+      if (!fit || !containerRef.current || containerRef.current.offsetParent === null) return;
+      fit.fit();
+      terminalRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
+
   return (
     <div className="terminal-tab">
       <div className="terminal-header">
-        <span className="terminal-dot" />
-        <span className="terminal-title">{profile}</span>
-        <button className="terminal-close" title="Cerrar sesión" onClick={() => {
-          invoke('ssh_close', { id: sessionId }).catch(() => undefined);
-          onClosed(sessionId);
-        }}>
+        <span className={`terminal-dot ${connected ? '' : 'dead'}`} />
+        <span className="terminal-title">
+          {profile}
+          {!connected && ' (desconectado)'}
+        </span>
+        {!connected && (
+          <button className="btn small primary" onClick={() => onReconnect(sessionId)}>
+            Reconectar
+          </button>
+        )}
+        <button
+          className="terminal-close"
+          title="Cerrar pestaña"
+          onClick={() => {
+            invoke('ssh_close', { id: sessionId }).catch(() => undefined);
+            onClose(sessionId);
+          }}
+        >
           ✕
         </button>
       </div>

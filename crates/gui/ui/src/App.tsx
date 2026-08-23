@@ -1,23 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
 import SftpPanel from './SftpPanel';
+import TabsBar from './TabsBar';
 import TerminalTab from './TerminalTab';
 import TunnelPanel from './TunnelPanel';
+import type { Profile, Tab } from './types';
 import './styles.css';
 
-type Profile = {
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  identity_file: string | null;
-  authentication: 'None' | 'Password' | 'PrivateKey';
-  accept_unknown_host_key: boolean;
-};
-
-type Session = { id: string; profile: string };
 type ModalState = { open: boolean; editing: Profile | null };
 
 function App() {
@@ -26,11 +17,17 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({ open: false, editing: null });
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSession, setActiveSession] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [splitId, setSplitId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [sftpProfile, setSftpProfile] = useState<string | null>(null);
-  const [tunnelProfile, setTunnelProfile] = useState<string | null>(null);
+
+  const tabsRef = useRef<Tab[]>([]);
+  tabsRef.current = tabs;
+  const activeRef = useRef<string | null>(null);
+  activeRef.current = activeTabId;
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selected;
 
   const refresh = useCallback(
     () =>
@@ -40,20 +37,22 @@ function App() {
     [],
   );
 
-  const removeSession = useCallback((id: string) => {
-    setSessions((current) => current.filter((session) => session.id !== id));
-    setActiveSession((current) => (current === id ? null : current));
-  }, []);
-
   useEffect(() => {
     refresh();
     const unlisten = listen<{ id: string; status: string }>('ssh-status', (event) => {
-      if (event.payload.status === 'closed') removeSession(event.payload.id);
+      if (event.payload.status !== 'closed') return;
+      setTabs((current) =>
+        current.map((tab) =>
+          tab.kind === 'terminal' && tab.id === event.payload.id
+            ? { ...tab, connected: false }
+            : tab,
+        ),
+      );
     });
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [refresh, removeSession]);
+  }, [refresh]);
 
   const openCreate = () => setModal({ open: true, editing: null });
   const openEdit = (profile: Profile) => setModal({ open: true, editing: profile });
@@ -72,7 +71,7 @@ function App() {
     }
   };
 
-  const connect = async (profileName: string) => {
+  const connect = useCallback(async (profileName: string) => {
     setConnecting(true);
     try {
       const id = await invoke<string>('ssh_connect', {
@@ -80,17 +79,139 @@ function App() {
         columns: 120,
         rows: 40,
       });
-      setSessions((current) => [...current, { id, profile: profileName }]);
-      setActiveSession(id);
+      setTabs((current) => [
+        ...current,
+        { kind: 'terminal', id, profile: profileName, connected: true },
+      ]);
+      setActiveTabId(id);
+      setSelected(profileName);
     } catch (reason) {
       setError(String(reason));
     } finally {
       setConnecting(false);
     }
-  };
+  }, []);
+
+  const closeTab = useCallback((id: string) => {
+    const current = tabsRef.current;
+    const index = current.findIndex((tab) => tab.id === id);
+    if (index === -1) return;
+    const tab = current[index];
+    if (tab.kind === 'terminal') {
+      invoke('ssh_close', { id }).catch(() => undefined);
+    }
+    const next = current.filter((item) => item.id !== id);
+    setTabs(next);
+    setSplitId((value) => (value === id ? null : value));
+    setActiveTabId((active) => {
+      if (active !== id) return active;
+      const fallback = next[Math.min(index, next.length - 1)];
+      return fallback ? fallback.id : null;
+    });
+  }, []);
+
+  const reconnect = useCallback(async (sessionId: string) => {
+    const tab = tabsRef.current.find((item) => item.id === sessionId);
+    if (!tab || tab.kind !== 'terminal') return;
+    setConnecting(true);
+    try {
+      const id = await invoke<string>('ssh_connect', {
+        profileName: tab.profile,
+        columns: 120,
+        rows: 40,
+      });
+      setTabs((current) =>
+        current.map((item) =>
+          item.id === sessionId && item.kind === 'terminal'
+            ? { kind: 'terminal', id, profile: item.profile, connected: true }
+            : item,
+        ),
+      );
+      setActiveTabId(id);
+      setSplitId((value) => (value === sessionId ? null : value));
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  const openPanel = useCallback((kind: 'sftp' | 'tunnels', profileName: string) => {
+    const id = `${kind}:${profileName}`;
+    setTabs((current) =>
+      current.some((tab) => tab.id === id)
+        ? current
+        : [
+            ...current,
+            kind === 'sftp'
+              ? { kind: 'sftp' as const, id, profile: profileName }
+              : { kind: 'tunnels' as const, id, profile: profileName },
+          ],
+    );
+    setActiveTabId(id);
+    setSelected(profileName);
+  }, []);
+
+  const cycleTabs = useCallback((offset: number) => {
+    const list = tabsRef.current;
+    if (list.length === 0) return;
+    const index = list.findIndex((tab) => tab.id === activeRef.current);
+    const next = list[(((index === -1 ? 0 : index) + offset % list.length) % list.length + list.length) % list.length];
+    setActiveTabId(next.id);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 't' && !event.shiftKey) {
+        event.preventDefault();
+        const name = selectedRef.current;
+        if (name) void connect(name);
+        else setModal({ open: true, editing: null });
+      } else if (key === 'w') {
+        event.preventDefault();
+        if (activeRef.current) closeTab(activeRef.current);
+      } else if ((key === 'tab' && !event.shiftKey) || key === 'pagedown') {
+        event.preventDefault();
+        cycleTabs(1);
+      } else if ((key === 'tab' && event.shiftKey) || key === 'pageup') {
+        event.preventDefault();
+        cycleTabs(-1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [connect, closeTab, cycleTabs]);
 
   const selectedProfile = profiles.find((profile) => profile.name === selected) ?? null;
-  const activeSessionObj = sessions.find((session) => session.id === activeSession) ?? null;
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
+  const terminalTabs = tabs.filter((tab): tab is Extract<Tab, { kind: 'terminal' }> => tab.kind === 'terminal');
+
+  const visibleTerminals = new Set<string>();
+  if (activeTab?.kind === 'terminal') {
+    visibleTerminals.add(activeTab.id);
+    if (
+      splitId &&
+      splitId !== activeTab.id &&
+      terminalTabs.some((tab) => tab.id === splitId)
+    ) {
+      visibleTerminals.add(splitId);
+    }
+  }
+
+  const canSplit =
+    activeTab?.kind === 'terminal' && terminalTabs.length >= 2;
+
+  const toggleSplit = () => {
+    if (!canSplit) return;
+    if (splitId) {
+      setSplitId(null);
+      return;
+    }
+    const candidate = terminalTabs.find((tab) => tab.id !== activeTabId);
+    if (candidate) setSplitId(candidate.id);
+  };
 
   return (
     <div className="app">
@@ -105,17 +226,22 @@ function App() {
         {profiles.length === 0 && <p className="muted empty">No hay perfiles todavía.</p>}
         <ul className="profiles">
           {profiles.map((profile) => {
-            const active = sessions.some((session) => session.profile === profile.name);
+            const liveSessions = terminalTabs.filter(
+              (tab) => tab.profile === profile.name && tab.connected,
+            ).length;
             return (
               <li
                 key={profile.name}
                 className={`profile ${selected === profile.name ? 'active' : ''}`}
                 onClick={() => setSelected(profile.name)}
+                onDoubleClick={() => void connect(profile.name)}
+                title="Doble clic para conectar"
               >
                 <span className="profile-row">
                   <span className="profile-name">
-                    {active && <span className="live-dot" />}
+                    {liveSessions > 0 && <span className="live-dot" />}
                     {profile.name}
+                    {liveSessions > 1 && ` ·${liveSessions}`}
                   </span>
                   <button
                     className="icon-btn small"
@@ -147,85 +273,126 @@ function App() {
         </ul>
       </aside>
 
-      <main className="workspace">
-        {sessions.length > 0 && (
-          <div className="tabbar">
-            {sessions.map((session) => (
-              <button
-                key={session.id}
-                className={`tab ${session.id === activeSession ? 'tab-active' : ''}`}
-                onClick={() => {
-                  setSftpProfile(null);
-                  setTunnelProfile(null);
-                  setActiveSession(session.id);
-                }}
-              >
-                {session.profile}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {sftpProfile ? (
-          <SftpPanel profile={sftpProfile} onClose={() => setSftpProfile(null)} />
-        ) : tunnelProfile ? (
-          <TunnelPanel profile={tunnelProfile} onClose={() => setTunnelProfile(null)} />
-        ) : activeSessionObj ? (
-          <TerminalTab
-            sessionId={activeSessionObj.id}
-            profile={activeSessionObj.profile}
-            onClosed={removeSession}
-          />
-        ) : selectedProfile ? (
-          <div className="details">
-            <h2>{selectedProfile.name}</h2>
-            <dl className="detail-grid">
-              <dt>Endpoint</dt>
-              <dd>
-                {selectedProfile.host}:{selectedProfile.port}
-              </dd>
-              <dt>Usuario</dt>
-              <dd>{selectedProfile.username}</dd>
-              <dt>Autenticación</dt>
-              <dd>{selectedProfile.authentication}</dd>
-              <dt>Clave</dt>
-              <dd>{selectedProfile.identity_file ?? '—'}</dd>
-            </dl>
-            <div className="detail-actions">
-              <button
-                className="btn primary connect"
-                disabled={connecting}
-                onClick={() => connect(selectedProfile.name)}
-              >
-                {connecting ? 'Conectando…' : 'Conectar'}
-              </button>
-              <button
-                className="btn connect"
-                onClick={() => setSftpProfile(selectedProfile.name)}
-              >
-                SFTP
-              </button>
-              <button
-                className="btn connect"
-                onClick={() => setTunnelProfile(selectedProfile.name)}
-              >
-                Túneles
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="details">
-            <h2>Workspace</h2>
-            <p className="muted">Selecciona una conexión para abrir una sesión SSH.</p>
-          </div>
-        )}
-
-        {error && (
-          <button className="toast error" onClick={() => setError(null)}>
-            {error} (cerrar)
+      <div className="main">
+        <div className="topbar">
+          <button className="btn small" onClick={openCreate}>
+            + Conexión
           </button>
+          <button
+            className="btn small"
+            disabled={!canSplit}
+            title={
+              canSplit
+                ? splitId
+                  ? 'Volver a un solo panel'
+                  : 'Dividir en dos paneles'
+                : 'Abre al menos dos sesiones para dividir'
+            }
+            onClick={toggleSplit}
+          >
+            {splitId ? 'Unir vista' : 'Dividir'}
+          </button>
+          <button
+            className="btn small"
+            disabled={!activeTab}
+            onClick={() => activeTab && closeTab(activeTab.id)}
+          >
+            Cerrar pestaña
+          </button>
+          {connecting && <span className="muted small topbar-note">Conectando…</span>}
+          <span className="topbar-hint muted small">
+            Ctrl+T nueva sesión · Ctrl+W cerrar · Ctrl+Tab cambiar
+          </span>
+        </div>
+
+        {tabs.length > 0 && (
+          <TabsBar
+            tabs={tabs}
+            activeId={activeTabId}
+            onSelect={setActiveTabId}
+            onClose={closeTab}
+          />
         )}
-      </main>
+
+        <main className={`content ${visibleTerminals.size > 1 ? 'split' : ''}`}>
+          {terminalTabs.map((tab) => (
+            <div
+              key={tab.id}
+              className="pane-slot"
+              style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none' }}
+            >
+              <TerminalTab
+                sessionId={tab.id}
+                profile={tab.profile}
+                connected={tab.connected}
+                visible={visibleTerminals.has(tab.id)}
+                onClose={closeTab}
+                onReconnect={reconnect}
+              />
+            </div>
+          ))}
+
+          {activeTab?.kind === 'sftp' && (
+            <SftpPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />
+          )}
+          {activeTab?.kind === 'tunnels' && (
+            <TunnelPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />
+          )}
+
+          {!activeTab &&
+            (selectedProfile ? (
+              <div className="details">
+                <h2>{selectedProfile.name}</h2>
+                <dl className="detail-grid">
+                  <dt>Endpoint</dt>
+                  <dd>
+                    {selectedProfile.host}:{selectedProfile.port}
+                  </dd>
+                  <dt>Usuario</dt>
+                  <dd>{selectedProfile.username}</dd>
+                  <dt>Autenticación</dt>
+                  <dd>{selectedProfile.authentication}</dd>
+                  <dt>Clave</dt>
+                  <dd>{selectedProfile.identity_file ?? '—'}</dd>
+                </dl>
+                <div className="detail-actions">
+                  <button
+                    className="btn primary connect"
+                    disabled={connecting}
+                    onClick={() => void connect(selectedProfile.name)}
+                  >
+                    {connecting ? 'Conectando…' : 'Conectar'}
+                  </button>
+                  <button
+                    className="btn connect"
+                    onClick={() => openPanel('sftp', selectedProfile.name)}
+                  >
+                    SFTP
+                  </button>
+                  <button
+                    className="btn connect"
+                    onClick={() => openPanel('tunnels', selectedProfile.name)}
+                  >
+                    Túneles
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="details">
+                <h2>Workspace</h2>
+                <p className="muted">
+                  Selecciona una conexión y pulsa doble clic para abrir una sesión SSH.
+                </p>
+              </div>
+            ))}
+
+          {error && (
+            <button className="toast error" onClick={() => setError(null)}>
+              {error} (cerrar)
+            </button>
+          )}
+        </main>
+      </div>
 
       {modal.open && (
         <ProfileModal
