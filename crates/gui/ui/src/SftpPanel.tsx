@@ -53,21 +53,41 @@ function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete }: RowProp
   return (
     <li>
       <div className="pane-item">
-        <button
-          type="button"
-          className="pane-entry"
-          disabled={busy}
-          aria-label={
-            entry.is_dir ? `Abrir carpeta ${entry.name}` : `${action} ${entry.name}, ${fmtSize(entry.size)}`
-          }
-          onClick={() => (entry.is_dir ? onOpen(entry) : onTransfer(entry))}
-        >
-          <span className={`pane-icon ${entry.is_dir ? 'dir' : 'file'}`} aria-hidden="true">
-            {entry.is_dir ? <FolderIcon /> : <FileIcon />}
-          </span>
-          <span className="pane-name">{entry.name}</span>
-          <span className="pane-size">{entry.is_dir ? '' : fmtSize(entry.size)}</span>
-        </button>
+        {entry.is_dir ? (
+          <button
+            type="button"
+            className="pane-entry"
+            disabled={busy}
+            aria-label={`Abrir carpeta ${entry.name}`}
+            onClick={() => onOpen(entry)}
+          >
+            <span className="pane-icon dir" aria-hidden="true">
+              <FolderIcon />
+            </span>
+            <span className="pane-name">{entry.name}</span>
+            <span className="pane-size" />
+          </button>
+        ) : (
+          <div className="pane-entry pane-entry-static">
+            <span className="pane-icon" aria-hidden="true">
+              <FileIcon />
+            </span>
+            <span className="pane-name">{entry.name}</span>
+            <span className="pane-size">{fmtSize(entry.size)}</span>
+          </div>
+        )}
+        {!entry.is_dir && (
+          <button
+            type="button"
+            className="icon-btn small"
+            disabled={busy}
+            aria-label={`${action} ${entry.name}`}
+            title={action}
+            onClick={() => onTransfer(entry)}
+          >
+            {remote ? '↓' : '↑'}
+          </button>
+        )}
         {!entry.is_dir && (
           <button
             type="button"
@@ -369,7 +389,7 @@ export default function SftpPanel({ profile }: Props) {
             )}
           </ul>
           <div className="pane-footer muted small">
-            Clic en carpeta para abrir · ↑ sube el archivo
+            Clic en carpeta para abrir · ↑ sube el archivo seleccionado
           </div>
         </div>
 
@@ -425,7 +445,7 @@ export default function SftpPanel({ profile }: Props) {
             )}
           </ul>
           <div className="pane-footer muted small">
-            Clic en carpeta para abrir · clic en archivo para descargar
+            Clic en carpeta para abrir · ↓ descarga el archivo seleccionado
           </div>
         </div>
       </div>

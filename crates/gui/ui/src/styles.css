@@ -1857,6 +1857,14 @@ h3 {
   cursor: pointer;
 }
 
+.pane-entry-static {
+  cursor: default;
+}
+
+.pane-entry-static:hover {
+  background: none;
+}
+
 .pane-entry:disabled {
   opacity: 0.5;
   cursor: not-allowed;
