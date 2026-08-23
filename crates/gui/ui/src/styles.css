@@ -1,12 +1,42 @@
 :root {
+  /* Superficies */
   --bg: #0c0f16;
   --surface: #141922;
   --surface-alt: #1b2230;
   --border: #3c485e;
-  --muted: #8b97ac;
+  --border-subtle: #262f42;
+
+  /* Texto */
+  --text: #ffffff;
+  --muted: #9aa7bd;
   --accent: #5dd3ff;
   --active: #24507a;
+  --success: #3ddc84;
   --danger: #ff6b6b;
+  --danger-bg: rgba(255, 107, 107, 0.12);
+
+  /* Forma */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Espaciado (escala 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Tipografía */
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-md: 14px;
+  --font-xl: 20px;
+  --font-mono: Menlo, Monaco, 'Cascadia Mono', 'Fira Code', monospace;
+
+  --transition: 120ms ease;
+
   color-scheme: dark;
 }
 
@@ -23,9 +53,46 @@ body,
 
 body {
   background: var(--bg);
-  color: #fff;
+  color: var(--text);
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: var(--font-md);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: var(--radius-lg);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--border);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .app {
@@ -33,12 +100,14 @@ body {
   height: 100%;
 }
 
+/* ---------- Sidebar ---------- */
+
 .sidebar {
   width: 290px;
   flex-shrink: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  padding: 14px;
+  padding: var(--space-4);
   overflow-y: auto;
 }
 
@@ -46,17 +115,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .brand {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-xl);
   color: var(--accent);
 }
 
 .small {
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .muted {
@@ -68,26 +137,36 @@ body {
 }
 
 .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--surface-alt);
   border: 1px solid var(--border);
   color: var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   width: 30px;
   height: 30px;
-  font-size: 18px;
+  font-size: var(--font-lg);
   line-height: 1;
   cursor: pointer;
+  transition: border-color var(--transition), color var(--transition),
+    background var(--transition);
 }
 
-.icon-btn:hover {
+.icon-btn:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .icon-btn.small {
   width: 24px;
   height: 24px;
-  font-size: 13px;
-  border-radius: 5px;
+  font-size: var(--font-sm);
+  border-radius: var(--radius-sm);
   color: var(--muted);
 }
 
@@ -98,22 +177,20 @@ body {
 
 .profiles {
   list-style: none;
-  margin: 10px 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .profile {
+  position: relative;
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  transition: border-color var(--transition), background var(--transition);
 }
 
 .profile:hover,
@@ -125,7 +202,7 @@ body {
 .profile-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 .profile-name {
@@ -135,8 +212,10 @@ body {
 
 .profile-endpoint {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
+
+/* ---------- Layout principal ---------- */
 
 .main {
   flex: 1;
@@ -149,8 +228,8 @@ body {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -160,7 +239,7 @@ body {
 }
 
 .topbar-note {
-  margin-left: 4px;
+  margin-left: var(--space-1);
 }
 
 .content {
@@ -184,17 +263,18 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px;
+  padding: var(--space-6);
 }
 
 .details h2 {
   margin-top: 0;
+  margin-bottom: var(--space-4);
 }
 
 .detail-grid {
   display: grid;
   grid-template-columns: 140px 1fr;
-  gap: 8px 16px;
+  gap: var(--space-2) var(--space-4);
   max-width: 560px;
 }
 
@@ -208,18 +288,20 @@ body {
 
 .toast {
   position: absolute;
-  bottom: 16px;
-  left: 16px;
+  bottom: var(--space-4);
+  left: var(--space-4);
   max-width: min(560px, 90%);
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
   border: 1px solid var(--danger);
-  background: rgba(255, 107, 107, 0.12);
+  background: var(--danger-bg);
   color: var(--danger);
   cursor: pointer;
   font: inherit;
   z-index: 6;
 }
+
+/* ---------- Modal ---------- */
 
 .modal-backdrop {
   position: fixed;
@@ -238,55 +320,58 @@ body {
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--accent);
-  border-radius: 12px;
-  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .modal h2 {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-1);
   color: var(--accent);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--space-1);
 }
 
 .field > span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .field-row {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .field-row .field {
   flex: 1;
 }
 
-.field input {
+.field input,
+.field select {
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  color: #fff;
-  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  padding: var(--space-2) var(--space-3);
   font: inherit;
+  transition: border-color var(--transition);
 }
 
-.field input:focus {
+.field input:focus,
+.field select:focus {
   outline: none;
   border-color: var(--accent);
 }
 
 .key-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .key-row input {
@@ -298,18 +383,18 @@ body {
   background: var(--surface-alt);
   border: 1px solid var(--border);
   color: var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
 .hint {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .segmented {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .segmented button {
@@ -317,24 +402,30 @@ body {
   background: var(--surface-alt);
   border: 1px solid var(--border);
   color: var(--muted);
-  border-radius: 6px;
-  padding: 8px;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
   cursor: pointer;
   font: inherit;
+  transition: border-color var(--transition), color var(--transition),
+    background var(--transition);
+}
+
+.segmented button:hover {
+  border-color: var(--accent);
 }
 
 .segmented .segmented-active {
   background: var(--active);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--text);
 }
 
 .check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--font-sm);
 }
 
 .form-error {
@@ -345,32 +436,54 @@ body {
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 6px;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
+
+/* ---------- Botones ---------- */
 
 .btn {
   padding: 9px 18px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface-alt);
-  color: #fff;
+  color: var(--text);
   cursor: pointer;
   font: inherit;
+  transition: border-color var(--transition), background var(--transition),
+    color var(--transition);
 }
 
 .btn.primary {
   background: var(--active);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--text);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #2d618f;
 }
 
 .btn.ghost {
   background: transparent;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.small {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-xs);
 }
 
 .live-dot {
@@ -378,14 +491,16 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #3ddc84;
-  margin-right: 6px;
+  background: var(--success);
+  margin-right: var(--space-1);
 }
+
+/* ---------- Pestañas ---------- */
 
 .tabbar {
   display: flex;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   overflow-x: auto;
@@ -398,20 +513,26 @@ body {
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--muted);
-  padding: 5px 8px 5px 10px;
+  padding: 5px var(--space-2) 5px var(--space-3);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-sm);
   white-space: nowrap;
   user-select: none;
+  transition: border-color var(--transition), background var(--transition),
+    color var(--transition);
+}
+
+.tab:hover {
+  border-color: var(--accent);
 }
 
 .tab-active {
   background: var(--active);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--text);
 }
 
 .tab-label {
@@ -429,6 +550,8 @@ body {
   font-size: 11px;
   line-height: 1;
   padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: opacity var(--transition), color var(--transition);
 }
 
 .tab:hover .tab-close,
@@ -448,7 +571,7 @@ body {
 }
 
 .tab-dot.live {
-  background: #3ddc84;
+  background: var(--success);
 }
 
 .tab-dot.dead {
@@ -460,8 +583,10 @@ body {
 }
 
 .connect {
-  margin-top: 16px;
+  margin-top: var(--space-4);
 }
+
+/* ---------- Terminal ---------- */
 
 .terminal-tab {
   flex: 1;
@@ -469,25 +594,26 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: #0c0f16;
+  background: var(--bg);
 }
 
 .terminal-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .terminal-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #3ddc84;
+  background: var(--success);
+  flex-shrink: 0;
 }
 
 .terminal-dot.dead {
@@ -503,7 +629,10 @@ body {
   border: none;
   color: var(--muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--font-xs);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-1);
+  transition: color var(--transition);
 }
 
 .terminal-close:hover {
@@ -513,14 +642,16 @@ body {
 .terminal-body {
   flex: 1;
   min-height: 0;
-  padding: 4px;
+  padding: var(--space-1);
 }
 
 .detail-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 16px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
+
+/* ---------- SFTP ---------- */
 
 .sftp-panel {
   flex: 1;
@@ -533,24 +664,24 @@ body {
 .sftp-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .pane-message {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 107, 107, 0.1);
+  background: var(--danger-bg);
   color: var(--danger);
-  font-size: 13px;
+  font-size: var(--font-sm);
 }
 
 .pane-grid {
@@ -572,20 +703,21 @@ body {
 .pane-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--border);
 }
 
 .pane-path {
   flex: 1;
+  min-width: 0;
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
-  padding: 5px 8px;
+  padding: 5px var(--space-2);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .pane-list {
@@ -594,16 +726,17 @@ body {
   overflow-y: auto;
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: var(--space-1);
 }
 
 .pane-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 5px;
+  gap: var(--space-2);
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background var(--transition);
 }
 
 .pane-item:hover {
@@ -623,24 +756,21 @@ body {
 
 .pane-size {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .pane-footer {
-  padding: 6px 10px;
+  padding: var(--space-1) var(--space-3);
   border-top: 1px solid var(--border);
 }
 
-.btn.small {
-  padding: 4px 8px;
-  font-size: 12px;
-}
+/* ---------- Túneles ---------- */
 
 .tunnel-form {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--space-3);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--border);
 }
 
@@ -650,10 +780,10 @@ body {
 }
 
 .tunnel-list {
-  padding: 12px;
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   overflow-y: auto;
 }
 
@@ -661,11 +791,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: var(--space-2);
+  padding: var(--space-3);
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .tunnel-info {
@@ -677,8 +807,6 @@ body {
 .tunnel-local {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-weight: 600;
 }
-
-
