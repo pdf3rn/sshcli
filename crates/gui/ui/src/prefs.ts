@@ -12,6 +12,7 @@ export type Prefs = {
   cursorStyle: CursorStyle;
   cursorBlink: boolean;
   telemetryEnabled: boolean;
+  telemetryPanelOpen: boolean;
 };
 
 export const FONT_OPTIONS = [
@@ -45,6 +46,7 @@ export const DEFAULT_PREFS: Prefs = {
   cursorStyle: 'block',
   cursorBlink: true,
   telemetryEnabled: false,
+  telemetryPanelOpen: false,
 };
 
 const STORAGE_KEY = 'sshcli.prefs.v1';

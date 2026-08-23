@@ -7,6 +7,7 @@ import HomeView from './HomeView';
 import SettingsView from './SettingsView';
 import SftpPanel from './SftpPanel';
 import TelemetryPanel from './TelemetryPanel';
+import { ActivityIcon, ColumnsIcon, PlusIcon, XIcon } from './icons';
 import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
 import TerminalTab from './TerminalTab';
@@ -375,30 +376,63 @@ function App() {
 
       <div className="main">
         <div className="topbar">
-          <button className="btn small" onClick={openCreate}>
-            + Conexión
-          </button>
-          <button
-            className="btn small"
-            disabled={!canSplit}
-            title={
-              canSplit
-                ? splitId
-                  ? 'Volver a un solo panel'
-                  : 'Dividir en dos paneles'
-                : 'Abre al menos dos sesiones para dividir'
-            }
-            onClick={toggleSplit}
-          >
-            {splitId ? 'Unir vista' : 'Dividir'}
-          </button>
-          <button
-            className="btn small"
-            disabled={!activeTab}
-            onClick={() => activeTab && closeTab(activeTab.id)}
-          >
-            Cerrar pestaña
-          </button>
+          <div className="topbar-tools">
+            <button
+              type="button"
+              className="icon-btn"
+              title="Nueva conexión"
+              aria-label="Nueva conexión"
+              onClick={openCreate}
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              disabled={!canSplit}
+              aria-label={
+                canSplit
+                  ? splitId
+                    ? 'Volver a un solo panel'
+                    : 'Dividir en dos paneles'
+                  : 'Abre al menos dos sesiones para dividir'
+              }
+              title={
+                canSplit
+                  ? splitId
+                    ? 'Volver a un solo panel'
+                    : 'Dividir en dos paneles'
+                  : 'Abre al menos dos sesiones para dividir'
+              }
+              onClick={toggleSplit}
+            >
+              <ColumnsIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              disabled={!activeTab}
+              title="Cerrar pestaña"
+              aria-label="Cerrar pestaña"
+              onClick={() => activeTab && closeTab(activeTab.id)}
+            >
+              <XIcon />
+            </button>
+            {activeTab?.kind === 'terminal' && prefs.telemetryEnabled && (
+              <button
+                type="button"
+                className={`icon-btn telemetry-toggle ${prefs.telemetryPanelOpen ? 'on' : ''}`}
+                aria-pressed={prefs.telemetryPanelOpen}
+                title={prefs.telemetryPanelOpen ? 'Ocultar telemetría' : 'Mostrar telemetría'}
+                aria-label={prefs.telemetryPanelOpen ? 'Ocultar telemetría' : 'Mostrar telemetría'}
+                onClick={() =>
+                  updatePrefs({ telemetryPanelOpen: !prefs.telemetryPanelOpen })
+                }
+              >
+                <ActivityIcon />
+              </button>
+            )}
+          </div>
           {connecting && <span className="muted small topbar-note">Conectando…</span>}
         </div>
 
@@ -433,7 +467,7 @@ function App() {
           {activeTab?.kind === 'sftp' && (
             <SftpPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />
           )}
-          {activeTab?.kind === 'terminal' && prefs.telemetryEnabled && (
+          {activeTab?.kind === 'terminal' && prefs.telemetryEnabled && prefs.telemetryPanelOpen && (
             <TelemetryPanel profile={activeTab.profile} />
           )}
           {activeTab?.kind === 'tunnels' && (

@@ -1160,6 +1160,38 @@ h3 {
   background: var(--surface);
 }
 
+.topbar-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.topbar .icon-btn {
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.topbar .icon-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--border);
+  background: var(--surface-alt);
+}
+
+.icon-btn.telemetry-toggle.on,
+.btn[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--active);
+  border-color: var(--accent-strong);
+}
+
+.icon-btn.telemetry-toggle.on:hover:not(:disabled),
+.btn[aria-pressed='true']:hover {
+  color: var(--accent);
+  background: var(--active);
+  border-color: var(--accent);
+}
+
 .topbar-hint {
   margin-left: auto;
 }
