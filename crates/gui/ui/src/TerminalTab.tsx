@@ -8,7 +8,6 @@ import '@xterm/xterm/css/xterm.css';
 
 type Props = {
   sessionId: string;
-  profile: string;
   connected: boolean;
   visible: boolean;
   prefs: Prefs;
@@ -18,7 +17,6 @@ type Props = {
 
 export default function TerminalTab({
   sessionId,
-  profile,
   connected,
   visible,
   prefs,
@@ -167,31 +165,19 @@ export default function TerminalTab({
 
   return (
     <div className="terminal-tab">
-      <div className="terminal-header">
-        <span className={`terminal-dot ${connected ? '' : 'dead'}`} aria-hidden="true" />
-        <span className="terminal-title">
-          {profile}
-          {!connected && ' (desconectado)'}
-        </span>
-        {!connected && (
-          <button type="button" className="btn small primary" onClick={() => onReconnect(sessionId)}>
+      <div className="terminal-body" ref={containerRef} />
+      {!connected && (
+        <div className="terminal-dead" role="status">
+          <span className="terminal-dead-text">Sesión cerrada</span>
+          <button
+            type="button"
+            className="btn small primary"
+            onClick={() => onReconnect(sessionId)}
+          >
             Reconectar
           </button>
-        )}
-        <button
-          type="button"
-          className="terminal-close"
-          title="Cerrar pestaña"
-          aria-label={`Cerrar sesión ${profile}`}
-          onClick={() => {
-            invoke('ssh_close', { id: sessionId }).catch(() => undefined);
-            onClose(sessionId);
-          }}
-        >
-          ✕
-        </button>
-      </div>
-      <div className="terminal-body" ref={containerRef} />
+        </div>
+      )}
     </div>
   );
 }

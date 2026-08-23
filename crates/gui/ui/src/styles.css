@@ -1116,6 +1116,7 @@ h3 {
 .content > .pane-slot {
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
 .pane-slot + .pane-slot {
@@ -1487,18 +1488,8 @@ h3 {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
   background: var(--terminal-bg);
-}
-
-.terminal-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: var(--font-xs);
 }
 
 .terminal-dot {
@@ -1536,6 +1527,45 @@ h3 {
   flex: 1;
   min-height: 0;
   padding: var(--space-1);
+}
+
+.terminal-dead {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-highest);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.terminal-dead-text {
+  font-size: var(--font-sm);
+  color: var(--danger);
+}
+
+/* Etiqueta de perfil solo en vista dividida */
+.content.split .pane-slot::after {
+  content: attr(data-profile);
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-3);
+  z-index: 2;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface-highest) 85%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1px var(--space-2);
 }
 
 .detail-actions {

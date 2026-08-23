@@ -345,11 +345,11 @@ function App() {
             <div
               key={tab.id}
               className="pane-slot"
+              data-profile={tab.profile}
               style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none' }}
             >
               <TerminalTab
                 sessionId={tab.id}
-                profile={tab.profile}
                 connected={tab.connected}
                 visible={visibleTerminals.has(tab.id)}
                 prefs={prefs}
