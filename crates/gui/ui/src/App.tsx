@@ -6,6 +6,7 @@ import ConnectionsView from './ConnectionsView';
 import HomeView from './HomeView';
 import SettingsView from './SettingsView';
 import SftpPanel from './SftpPanel';
+import TelemetryPanel from './TelemetryPanel';
 import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
 import TerminalTab from './TerminalTab';
@@ -431,6 +432,9 @@ function App() {
 
           {activeTab?.kind === 'sftp' && (
             <SftpPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />
+          )}
+          {activeTab?.kind === 'terminal' && prefs.telemetryEnabled && (
+            <TelemetryPanel profile={activeTab.profile} />
           )}
           {activeTab?.kind === 'tunnels' && (
             <TunnelPanel profile={activeTab.profile} onClose={() => closeTab(activeTab.id)} />

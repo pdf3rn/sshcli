@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc, time::Duration};
 
-use russh::client;
+use russh::{client, ChannelMsg};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
@@ -91,6 +91,40 @@ pub async fn open_sftp(options: ConnectionOptions) -> AppResult<russh_sftp::clie
     russh_sftp::client::SftpSession::new(channel.into_stream())
         .await
         .map_err(|error| AppError::Sftp(error.to_string()))
+}
+
+pub struct ExecSession {
+    handle: client::Handle<ClientHandler>,
+}
+
+impl ExecSession {
+    pub async fn connect(options: ConnectionOptions) -> AppResult<Self> {
+        Ok(Self {
+            handle: authenticate(options).await?,
+        })
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.handle.is_closed()
+    }
+
+    pub async fn run(&mut self, command: &str) -> AppResult<String> {
+        let mut channel = self.handle.channel_open_session().await?;
+        channel.exec(true, command).await?;
+        let mut output = Vec::new();
+        while let Some(message) = channel.wait().await {
+            match message {
+                ChannelMsg::Data { data } | ChannelMsg::ExtendedData { data, .. } => {
+                    output.extend_from_slice(&data);
+                }
+                ChannelMsg::Eof | ChannelMsg::Close => break,
+                _ => {}
+            }
+        }
+        Ok(String::from_utf8_lossy(&output).into_owned())
+    }
+
+    pub async fn disconnect(self) {}
 }
 
 pub struct LocalForward {

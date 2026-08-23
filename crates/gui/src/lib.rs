@@ -1,6 +1,7 @@
 mod commands;
 mod session;
 mod sftp_session;
+mod telemetry;
 mod tunnel;
 
 pub fn run() {
@@ -8,6 +9,7 @@ pub fn run() {
         .manage(session::init_state())
         .manage(sftp_session::init_state())
         .manage(tunnel::init_state())
+        .manage(telemetry::init_state())
         .invoke_handler(tauri::generate_handler![
             commands::list_profiles,
             commands::list_identity_keys,
@@ -35,6 +37,8 @@ pub fn run() {
             tunnel::tunnel_start,
             tunnel::tunnel_list,
             tunnel::tunnel_stop,
+            telemetry::telemetry_sample,
+            telemetry::telemetry_disconnect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running sshcli");
