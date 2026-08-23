@@ -18,7 +18,10 @@ function PaneSkeletons() {
 
 type Entry = { name: string; kind?: string; is_dir: boolean; size: number };
 type Props = { profile: string };
-type DialogState = { kind: 'mkdir' } | { kind: 'delete'; entry: Entry };
+type DialogState =
+  | { kind: 'mkdir' }
+  | { kind: 'delete'; entry: Entry }
+  | { kind: 'overwrite'; direction: 'down' | 'up'; entry: Entry };
 type TransferProgress = {
   name: string;
   direction: 'upload' | 'download';
@@ -299,7 +302,7 @@ export default function SftpPanel({ profile }: Props) {
     }
   };
 
-  const download = (entry: Entry) =>
+  const performDownload = (entry: Entry) =>
     sessionId &&
     run(
       () =>
@@ -311,7 +314,7 @@ export default function SftpPanel({ profile }: Props) {
       `Descargado ${entry.name}`,
     );
 
-  const upload = (entry: Entry) =>
+  const performUpload = (entry: Entry) =>
     sessionId &&
     run(
       () =>
@@ -322,6 +325,33 @@ export default function SftpPanel({ profile }: Props) {
         }),
       `Subido ${entry.name}`,
     );
+
+  const requestTransfer = (direction: 'down' | 'up', entry: Entry) => {
+    if (!sessionId || entry.is_dir) return;
+    void (async () => {
+      try {
+        const exists =
+          direction === 'down'
+            ? await invoke<boolean>('local_file_exists', {
+                path: `${base(localPath)}/${entry.name}`,
+              })
+            : await invoke<boolean>('sftp_file_exists', {
+                id: sessionId,
+                path: `${base(remotePath)}/${entry.name}`,
+              });
+        if (!mounted.current) return;
+        if (exists) {
+          setDialog({ kind: 'overwrite', direction, entry });
+          return;
+        }
+      } catch (reason) {
+        if (mounted.current) setMessage(String(reason));
+        return;
+      }
+      if (direction === 'down') void performDownload(entry);
+      else void performUpload(entry);
+    })();
+  };
 
   const removeRemote = (entry: Entry) => {
     if (!sessionId) return;
@@ -383,7 +413,7 @@ export default function SftpPanel({ profile }: Props) {
                   remote={false}
                   busy={busy}
                   onOpen={(item) => void openLocalDir(item.name)}
-                  onTransfer={upload}
+                  onTransfer={(item) => requestTransfer('up', item)}
                 />
               ))
             )}
@@ -438,7 +468,7 @@ export default function SftpPanel({ profile }: Props) {
                   remote
                   busy={busy}
                   onOpen={(item) => void openRemoteDir(item.name)}
-                  onTransfer={download}
+                  onTransfer={(item) => requestTransfer('down', item)}
                   onDelete={(item) => setDialog({ kind: 'delete', entry: item })}
                 />
               ))
@@ -495,6 +525,25 @@ export default function SftpPanel({ profile }: Props) {
               () => invoke('sftp_mkdir', { id: sessionId, path: `${base(remotePath)}/${value}` }),
               `Creado ${value}`,
             );
+          }}
+        />
+      )}
+      {dialog?.kind === 'overwrite' && (
+        <PromptDialog
+          title={`¿Sobrescribir ${dialog.entry.name}?`}
+          description={
+            dialog.direction === 'down'
+              ? 'Ya existe un archivo local con ese nombre y se reemplazará.'
+              : 'Ya existe un archivo remoto con ese nombre y se reemplazará.'
+          }
+          confirmLabel="Sobrescribir"
+          danger
+          onCancel={() => setDialog(null)}
+          onConfirm={() => {
+            const { direction, entry } = dialog;
+            setDialog(null);
+            if (direction === 'down') void performDownload(entry);
+            else void performUpload(entry);
           }}
         />
       )}

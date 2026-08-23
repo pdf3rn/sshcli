@@ -217,6 +217,22 @@ pub async fn sftp_upload(
 }
 
 #[tauri::command]
+pub async fn sftp_file_exists(
+    state: State<'_, SftpState>,
+    id: String,
+    path: String,
+) -> Result<bool, String> {
+    let session = fetch_session(&state, &id)?;
+    let session = session.lock().await;
+    Ok(session.metadata(&path).await.is_ok())
+}
+
+#[tauri::command]
+pub fn local_file_exists(path: String) -> Result<bool, String> {
+    Ok(std::path::Path::new(&path).is_file())
+}
+
+#[tauri::command]
 pub async fn sftp_mkdir(
     state: State<'_, SftpState>,
     id: String,
