@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
+import ConnectionsView from './ConnectionsView';
 import SftpPanel from './SftpPanel';
 import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
@@ -225,6 +226,9 @@ function App() {
   };
 
   const liveSessions = terminalTabs.filter((tab) => tab.connected).length;
+  const liveProfileNames = new Set(
+    terminalTabs.filter((tab) => tab.connected).map((tab) => tab.profile),
+  );
 
   return (
     <div className="app">
@@ -252,9 +256,14 @@ function App() {
           />
         )}
         {view === 'connections' && (
-          <ViewPlaceholder
-            title="Conexiones"
-            description="Gestiona tus perfiles SSH en una tabla con grupos, etiquetas y búsqueda."
+          <ConnectionsView
+            profiles={profiles}
+            liveProfiles={liveProfileNames}
+            connecting={connecting}
+            onConnect={(name) => void connect(name)}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+            onCreate={openCreate}
           />
         )}
         {view === 'settings' && (
