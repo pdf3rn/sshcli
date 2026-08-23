@@ -1,3 +1,5 @@
+export type View = 'home' | 'connections' | 'session' | 'settings';
+
 export type Profile = {
   name: string;
   host: string;

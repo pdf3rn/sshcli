@@ -1,24 +1,35 @@
 :root {
-  /* Superficies */
-  --bg: #0c0f16;
-  --surface: #141922;
-  --surface-alt: #1b2230;
-  --border: #3c485e;
-  --border-subtle: #262f42;
+  /* Superficies — Graphite Terminal (Stitch) */
+  --bg: #0f141a;
+  --terminal-bg: #090f15;
+  --surface: #171c23;
+  --surface-alt: #1b2027;
+  --surface-high: #252a32;
+  --surface-highest: #30353d;
+
+  /* Bordes */
+  --border: #3c4a3e;
+  --border-subtle: #2c3138;
 
   /* Texto */
-  --text: #ffffff;
-  --muted: #9aa7bd;
-  --accent: #5dd3ff;
-  --active: #24507a;
-  --success: #3ddc84;
-  --danger: #ff6b6b;
-  --danger-bg: rgba(255, 107, 107, 0.12);
+  --text: #dee2ec;
+  --muted: #bbcbba;
 
-  /* Forma */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
+  /* Acentos */
+  --accent: #56fd93;
+  --accent-strong: #32e27c;
+  --accent-container: #2ee07a;
+  --on-accent: #00210c;
+  --active: rgba(46, 224, 122, 0.16);
+  --success: #32e27c;
+  --danger: #ffb4ab;
+  --danger-bg: rgba(255, 180, 171, 0.1);
+  --info: #a2c9ff;
+
+  /* Forma — bordes casi rectos */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
 
   /* Espaciado (escala 4px) */
   --space-1: 4px;
@@ -33,7 +44,12 @@
   --font-sm: 13px;
   --font-md: 14px;
   --font-xl: 20px;
-  --font-mono: Menlo, Monaco, 'Cascadia Mono', 'Fira Code', monospace;
+  --font-head: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', Menlo, Monaco, 'Cascadia Mono', 'Fira Code', monospace;
+
+  /* Alturas de cromo */
+  --topbar-h: 52px;
+  --statusbar-h: 36px;
 
   --transition: 120ms ease;
 
@@ -54,8 +70,14 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: var(--font-md);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-head);
 }
 
 :focus-visible {
@@ -101,7 +123,7 @@ body {
   background: linear-gradient(
     100deg,
     var(--surface-alt) 40%,
-    #242e42 50%,
+    var(--surface-high) 50%,
     var(--surface-alt) 60%
   );
   background-size: 200% 100%;
@@ -154,7 +176,142 @@ body {
 
 .app {
   display: flex;
+  flex-direction: column;
   height: 100%;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* ---------- Topbar global ---------- */
+
+.app-topbar {
+  flex-shrink: 0;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-5);
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.brand-top {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  gap: var(--space-2);
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.nav-btn:hover {
+  color: var(--text);
+}
+
+.nav-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.nav-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--active);
+  border: 1px solid var(--accent-strong);
+  color: var(--accent);
+  font-size: 10px;
+  border-radius: 999px;
+}
+
+/* ---------- Statusbar ---------- */
+
+.statusbar {
+  flex-shrink: 0;
+  height: var(--statusbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  background: var(--surface-alt);
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.status-dot.ok {
+  background: var(--accent-container);
+  box-shadow: 0 0 8px rgba(46, 224, 122, 0.6);
+}
+
+/* ---------- Vistas placeholder ---------- */
+
+.placeholder-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-6);
+}
+
+.placeholder-view h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 24px;
+  letter-spacing: -0.01em;
+}
+
+.placeholder-view p {
+  margin: 0 0 var(--space-2);
+  max-width: 560px;
 }
 
 /* ---------- Sidebar ---------- */
@@ -323,15 +480,6 @@ body {
   margin-left: auto;
 }
 
-.shortcut-hint {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: var(--font-xs);
-  cursor: help;
-  border-bottom: 1px dotted var(--border);
-  padding: 2px var(--space-1);
-}
-
 .topbar-note {
   margin-left: var(--space-1);
 }
@@ -384,8 +532,8 @@ body {
 }
 
 .toast {
-  position: absolute;
-  bottom: var(--space-4);
+  position: fixed;
+  bottom: calc(var(--statusbar-h) + var(--space-3));
   left: var(--space-4);
   max-width: min(560px, 90%);
   display: flex;
@@ -394,10 +542,10 @@ body {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   border: 1px solid var(--danger);
-  background: var(--danger-bg);
+  background: #3a1a1c;
   color: var(--danger);
   font: inherit;
-  z-index: 6;
+  z-index: 20;
 }
 
 .toast-message {
@@ -565,13 +713,16 @@ body {
 }
 
 .btn.primary {
-  background: var(--active);
+  background: var(--accent);
   border-color: var(--accent);
-  color: var(--text);
+  color: var(--on-accent);
+  font-weight: 600;
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: #2d618f;
+  background: #7dfead;
+  border-color: #7dfead;
+  color: var(--on-accent);
 }
 
 .btn.danger {
@@ -700,7 +851,7 @@ body {
 }
 
 .tab-dot.tool {
-  background: var(--accent);
+  background: var(--info);
 }
 
 .connect {
@@ -715,7 +866,7 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--terminal-bg);
 }
 
 .terminal-header {

@@ -3,10 +3,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
 import SftpPanel from './SftpPanel';
+import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
 import TerminalTab from './TerminalTab';
+import TopBar from './TopBar';
 import TunnelPanel from './TunnelPanel';
-import type { Profile, Tab } from './types';
+import ViewPlaceholder from './ViewPlaceholder';
+import type { Profile, Tab, View } from './types';
 import './styles.css';
 
 type ModalState = { open: boolean; editing: Profile | null };
@@ -22,6 +25,7 @@ function App() {
   const [splitId, setSplitId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [profilesLoaded, setProfilesLoaded] = useState(false);
+  const [view, setView] = useState<View>('home');
 
   const tabsRef = useRef<Tab[]>([]);
   tabsRef.current = tabs;
@@ -87,6 +91,7 @@ function App() {
       ]);
       setActiveTabId(id);
       setSelected(profileName);
+      setView('session');
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -152,6 +157,7 @@ function App() {
     );
     setActiveTabId(id);
     setSelected(profileName);
+    setView('session');
   }, []);
 
   const cycleTabs = useCallback((offset: number) => {
@@ -215,8 +221,48 @@ function App() {
     if (candidate) setSplitId(candidate.id);
   };
 
+  const liveSessions = terminalTabs.filter((tab) => tab.connected).length;
+
   return (
     <div className="app">
+      <TopBar view={view} liveSessions={liveSessions} onNavigate={setView} />
+
+      {error && (
+        <div className="toast error" role="alert">
+          <span className="toast-message">{error}</span>
+          <button
+            type="button"
+            className="toast-close"
+            aria-label="Descartar error"
+            onClick={() => setError(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <div className="workspace">
+        {view === 'home' && (
+          <ViewPlaceholder
+            title="Inicio"
+            description="Acceso rápido a tus conexiones recientes y acciones frecuentes."
+          />
+        )}
+        {view === 'connections' && (
+          <ViewPlaceholder
+            title="Conexiones"
+            description="Gestiona tus perfiles SSH en una tabla con grupos, etiquetas y búsqueda."
+          />
+        )}
+        {view === 'settings' && (
+          <ViewPlaceholder
+            title="Ajustes"
+            description="Tipografía, comportamiento del terminal y telemetría del host."
+          />
+        )}
+
+        {view === 'session' && (
+          <>
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1 className="brand">sshcli</h1>
@@ -338,13 +384,6 @@ function App() {
             Cerrar pestaña
           </button>
           {connecting && <span className="muted small topbar-note">Conectando…</span>}
-          <span
-            className="shortcut-hint"
-            role="note"
-            title="Atajos: Ctrl+T nueva sesión · Ctrl+W cerrar pestaña · Ctrl+Tab / Ctrl+PgUp-PgDn cambiar pestaña"
-          >
-            Atajos
-          </span>
         </div>
 
         {tabs.length > 0 && (
@@ -432,21 +471,13 @@ function App() {
               </div>
             ))}
 
-          {error && (
-            <div className="toast error" role="alert">
-              <span className="toast-message">{error}</span>
-              <button
-                type="button"
-                className="toast-close"
-                aria-label="Descartar error"
-                onClick={() => setError(null)}
-              >
-                ✕
-              </button>
-            </div>
-          )}
         </main>
+          </div>
+          </>
+        )}
       </div>
+
+      <StatusBar liveSessions={liveSessions} />
 
       {modal.open && (
         <ProfileModal
