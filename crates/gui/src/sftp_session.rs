@@ -54,7 +54,10 @@ fn fetch_session(
 }
 
 #[tauri::command]
-pub async fn sftp_connect(state: State<'_, SftpState>, profile_name: String) -> Result<String, String> {
+pub async fn sftp_connect(
+    state: State<'_, SftpState>,
+    profile_name: String,
+) -> Result<String, String> {
     let store = ProfileStore::new();
     let profile = store
         .load()
@@ -119,13 +122,12 @@ pub async fn sftp_list_dir(
 }
 
 #[tauri::command]
-pub async fn sftp_pwd(
-    state: State<'_, SftpState>,
-    id: String,
-) -> Result<String, String> {
+pub async fn sftp_pwd(state: State<'_, SftpState>, id: String) -> Result<String, String> {
     let session = fetch_session(&state, &id)?;
     let session = session.lock().await;
-    sftp::canonicalize(&session, ".").await.map_err(|error| error.to_string())
+    sftp::canonicalize(&session, ".")
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

@@ -3,10 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use russh::{
-    client::Msg,
-    ChannelMsg, ChannelWriteHalf,
-};
+use russh::{client::Msg, ChannelMsg, ChannelWriteHalf};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 use tokio::task::JoinHandle;
@@ -116,7 +113,9 @@ pub async fn ssh_connect(
                 message: "connection closed".into(),
             },
         );
-        let _ = manager.lock().map(|mut guard| guard.sessions.remove(&emit_id));
+        let _ = manager
+            .lock()
+            .map(|mut guard| guard.sessions.remove(&emit_id));
     });
 
     {
