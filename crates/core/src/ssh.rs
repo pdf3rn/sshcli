@@ -1,8 +1,6 @@
 use std::{path::Path, sync::Arc, time::Duration};
 
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use russh::{client, ChannelMsg};
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use russh::client;
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::{
@@ -62,26 +60,13 @@ pub fn options_for_profile(
     })
 }
 
-pub async fn connect(options: ConnectionOptions) -> AppResult<()> {
-    let session = authenticate(options).await?;
-    let channel = session.channel_open_session().await?;
-    channel
-        .request_pty(true, "xterm-256color", 120, 40, 0, 0, &[])
-        .await?;
-    channel.request_shell(true).await?;
-
-    enable_raw_mode()?;
-    let result = run_terminal(channel).await;
-    disable_raw_mode()?;
-    result
-}
-
 pub async fn open_shell(
     options: ConnectionOptions,
+    columns: u16,
+    rows: u16,
 ) -> AppResult<russh::Channel<russh::client::Msg>> {
     let session = authenticate(options).await?;
     let channel = session.channel_open_session().await?;
-    let (columns, rows) = crossterm::terminal::size().unwrap_or((120, 40));
     channel
         .request_pty(
             true,
@@ -114,8 +99,6 @@ pub async fn forward_local(
     target_port: u16,
 ) -> AppResult<()> {
     let listener = TcpListener::bind((bind_host.as_str(), bind_port)).await?;
-    let local_address = listener.local_addr()?;
-    println!("Forwarding {local_address} -> {target_host}:{target_port}. Press Ctrl-C to stop.");
     let session = authenticate(options).await?;
 
     loop {
@@ -201,34 +184,4 @@ async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<Cl
         return Err(crate::error::AppError::AuthenticationFailed);
     }
     Ok(session)
-}
-
-async fn run_terminal(mut channel: russh::Channel<russh::client::Msg>) -> AppResult<()> {
-    let mut input = io::stdin();
-    let mut output = io::stdout();
-    let mut input_buffer = [0_u8; 4096];
-
-    loop {
-        tokio::select! {
-            read = input.read(&mut input_buffer) => {
-                let count = read?;
-                if count == 0 {
-                    break;
-                }
-                channel.data(&input_buffer[..count]).await?;
-            }
-            message = channel.wait() => {
-                match message {
-                    Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
-                        output.write_all(&data).await?;
-                        output.flush().await?;
-                    }
-                    Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break,
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    Ok(())
 }

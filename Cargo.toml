@@ -1,26 +1,22 @@
-[package]
-name = "sshcli"
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/gui"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
-description = "A cross-platform terminal SSH client"
 license = "MIT"
+description = "Cross-platform SSH client with a desktop GUI"
 
-[dependencies]
-clap = { version = "4.5", features = ["derive"] }
+[workspace.dependencies]
 directories = "6.0"
 keyring = "3.6"
-ratatui = "0.29"
-crossterm = { version = "0.28", features = ["bracketed-paste", "event-stream"] }
-futures-core = "0.3"
-rpassword = "7.4"
 russh = "0.54"
 russh-sftp = "2.4"
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
 thiserror = "2.0"
-tokio = { version = "1.40", features = ["fs", "io-std", "io-util", "macros", "rt-multi-thread", "signal", "time"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.40", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "time"] }
+toml = "0.8"
 
 [profile.release]
 lto = true

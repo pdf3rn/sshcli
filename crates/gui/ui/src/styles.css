@@ -1,0 +1,93 @@
+:root {
+  --bg: #0c0f16;
+  --surface: #141922;
+  --surface-alt: #1b2230;
+  --border: #3c485e;
+  --muted: #8b97ac;
+  --accent: #5dd3ff;
+  --active: #345c85;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.brand {
+  margin: 0 0 20px;
+  font-size: 20px;
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.empty {
+  font-style: italic;
+}
+
+.profiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-name {
+  font-weight: 600;
+}
+
+.profile-endpoint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workspace {
+  flex: 1;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.error {
+  color: #ff6b6b;
+}
