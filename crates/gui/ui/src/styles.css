@@ -777,6 +777,142 @@ h3 {
   font-size: 14px;
 }
 
+/* ---------- Vista Ajustes ---------- */
+
+.settings-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.settings-section {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.settings-section .panel-label {
+  margin-bottom: var(--space-3);
+}
+
+.section-description {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+}
+
+.settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field-label {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.settings-field > select,
+.settings-field > input[type='range'] {
+  width: 100%;
+}
+
+.settings-field select {
+  height: 34px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-sm);
+  padding: 0 var(--space-2);
+  transition: border-color var(--transition);
+}
+
+.settings-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-field input[type='range'] {
+  accent-color: var(--accent-container);
+}
+
+.theme-chip-row {
+  display: flex;
+}
+
+.theme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent-strong);
+  border-radius: var(--radius-sm);
+  background: var(--active);
+  color: var(--text);
+  font-size: var(--font-sm);
+  font-weight: 500;
+}
+
+.theme-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #090f15 50%, var(--accent-container) 50%);
+  border: 1px solid var(--border-subtle);
+}
+
+.term-preview {
+  margin-top: var(--space-3);
+  background: var(--terminal-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  padding: var(--space-3) var(--space-4);
+  white-space: pre-wrap;
+}
+
+.preview-prompt {
+  color: var(--accent);
+}
+
+.preview-cmd {
+  color: var(--info);
+}
+
+.section-note {
+  margin: 0;
+}
+
+.section-note code {
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  color: var(--accent);
+}
+
 /* ---------- Sidebar ---------- */
 
 .sidebar {

@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import type { Prefs } from './prefs';
 import '@xterm/xterm/css/xterm.css';
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
   profile: string;
   connected: boolean;
   visible: boolean;
+  prefs: Prefs;
   onClose: (sessionId: string) => void;
   onReconnect: (sessionId: string) => void;
 };
@@ -19,6 +21,7 @@ export default function TerminalTab({
   profile,
   connected,
   visible,
+  prefs,
   onClose,
   onReconnect,
 }: Props) {
@@ -27,27 +30,32 @@ export default function TerminalTab({
   const fitRef = useRef<FitAddon | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
 
   useEffect(() => {
     const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: 'Menlo, Monaco, "Cascadia Mono", "Fira Code", monospace',
-      fontSize: 13,
+      cursorBlink: prefs.cursorBlink,
+      cursorStyle: prefs.cursorStyle,
+      fontFamily: prefs.fontFamily,
+      fontSize: prefs.fontSize,
+      lineHeight: prefs.lineHeight,
+      scrollback: prefs.scrollback,
       theme: {
-        background: '#0c0f16',
-        foreground: '#e8ecf4',
-        cursor: '#5dd3ff',
-        selectionBackground: '#24507a',
-        black: '#0c0f16',
-        red: '#ff6b6b',
-        green: '#7dff9e',
+        background: '#090f15',
+        foreground: '#dee2ec',
+        cursor: '#56fd93',
+        cursorAccent: '#00210c',
+        selectionBackground: '#2e5d43',
+        black: '#0f141a',
+        red: '#ffb4ab',
+        green: '#56fd93',
         yellow: '#ffd166',
-        blue: '#5dd3ff',
+        blue: '#a2c9ff',
         magenta: '#c678dd',
         cyan: '#56d6dd',
-        white: '#e8ecf4',
+        white: '#dee2ec',
       },
-      scrollback: 5000,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -82,6 +90,26 @@ export default function TerminalTab({
       );
     });
 
+    const selectionListener = term.onSelectionChange(() => {
+      if (!prefsRef.current.copyOnSelect) return;
+      const selection = term.getSelection();
+      if (selection) {
+        navigator.clipboard.writeText(selection).catch(() => undefined);
+      }
+    });
+
+    const onContextMenu = (event: MouseEvent) => {
+      if (!prefsRef.current.rightClickPaste) return;
+      event.preventDefault();
+      navigator.clipboard
+        .readText()
+        .then((text) => {
+          if (text) term.paste(text);
+        })
+        .catch(() => undefined);
+    };
+    containerRef.current?.addEventListener('contextmenu', onContextMenu);
+
     let unlistenData: (() => void) | undefined;
     let unlistenStatus: (() => void) | undefined;
 
@@ -105,6 +133,8 @@ export default function TerminalTab({
     return () => {
       disposed = true;
       dataListener.dispose();
+      selectionListener.dispose();
+      containerRef.current?.removeEventListener('contextmenu', onContextMenu);
       unlistenData?.();
       unlistenStatus?.();
       observer.disconnect();
@@ -112,6 +142,17 @@ export default function TerminalTab({
       term.dispose();
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    term.options.fontFamily = prefs.fontFamily;
+    term.options.fontSize = prefs.fontSize;
+    term.options.lineHeight = prefs.lineHeight;
+    term.options.scrollback = prefs.scrollback;
+    term.options.cursorStyle = prefs.cursorStyle;
+    term.options.cursorBlink = prefs.cursorBlink;
+  }, [prefs]);
 
   useEffect(() => {
     if (!visible) return;

@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
 import ConnectionsView from './ConnectionsView';
 import HomeView from './HomeView';
+import SettingsView from './SettingsView';
 import SftpPanel from './SftpPanel';
 import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
@@ -12,6 +13,7 @@ import TopBar from './TopBar';
 import TunnelPanel from './TunnelPanel';
 import ViewPlaceholder from './ViewPlaceholder';
 import type { Profile, Tab, View } from './types';
+import { usePrefs } from './prefs';
 import './styles.css';
 
 type ModalState = { open: boolean; editing: Profile | null };
@@ -28,6 +30,7 @@ function App() {
   const [connecting, setConnecting] = useState(false);
   const [profilesLoaded, setProfilesLoaded] = useState(false);
   const [view, setView] = useState<View>('home');
+  const [prefs, updatePrefs] = usePrefs();
 
   const tabsRef = useRef<Tab[]>([]);
   tabsRef.current = tabs;
@@ -271,12 +274,7 @@ function App() {
             onCreate={openCreate}
           />
         )}
-        {view === 'settings' && (
-          <ViewPlaceholder
-            title="Ajustes"
-            description="Tipografía, comportamiento del terminal y telemetría del host."
-          />
-        )}
+        {view === 'settings' && <SettingsView prefs={prefs} onChange={updatePrefs} />}
 
         {view === 'session' && (
           <>
@@ -424,6 +422,7 @@ function App() {
                 profile={tab.profile}
                 connected={tab.connected}
                 visible={visibleTerminals.has(tab.id)}
+                prefs={prefs}
                 onClose={closeTab}
                 onReconnect={reconnect}
               />
