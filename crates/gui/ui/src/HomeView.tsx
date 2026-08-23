@@ -12,6 +12,7 @@ type Props = {
   onCreate: () => void;
   onBrowseAll: () => void;
   onImported: () => void;
+  onOpenLocal: () => void;
 };
 
 function formatLastUsed(secs: number | null): string {
@@ -35,6 +36,7 @@ export default function HomeView({
   onCreate,
   onBrowseAll,
   onImported,
+  onOpenLocal,
 }: Props) {
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [heroTarget, setHeroTarget] = useState('');
@@ -250,6 +252,12 @@ export default function HomeView({
               ⇩
             </span>
             Exportar config
+          </button>
+          <button type="button" className="action-card" onClick={onOpenLocal}>
+            <span className="action-glyph" aria-hidden="true">
+              ▸_
+            </span>
+            Terminal local
           </button>
           <input
             ref={fileInputRef}

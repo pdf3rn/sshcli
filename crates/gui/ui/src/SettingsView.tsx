@@ -5,6 +5,8 @@ import {
   type CursorStyle,
   type Prefs,
 } from './prefs';
+import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
 type Props = {
   prefs: Prefs;
@@ -217,7 +219,53 @@ export default function SettingsView({ prefs, onChange }: Props) {
             el snippet para configurarlo si falta.
           </p>
         </Section>
+
+        <LocalShellSection prefs={prefs} onChange={onChange} />
       </div>
     </section>
+  );
+}
+
+function LocalShellSection({
+  prefs,
+  onChange,
+}: {
+  prefs: Prefs;
+  onChange: (patch: Partial<Prefs>) => void;
+}) {
+  const [detected, setDetected] = useState('');
+  const [available, setAvailable] = useState<string[]>([]);
+
+  useEffect(() => {
+    invoke<{ detected: string; available: string[] }>('local_shell_detect')
+      .then((info) => {
+        setDetected(info.detected);
+        setAvailable(info.available);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  return (
+    <Section title="Terminal local">
+      <Field label="Intérprete">
+        <select
+          value={prefs.localShell}
+          onChange={(event) => onChange({ localShell: event.target.value })}
+        >
+          <option value="">
+            Automático{detected ? ` (${detected.split('/').pop()})` : ''}
+          </option>
+          {available.map((shell) => (
+            <option key={shell} value={shell}>
+              {shell}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <p className="muted small section-note">
+        Se abre como shell de login con un PTY nativo en tu equipo. «Automático» usa la
+        detección ($SHELL → passwd → intérpretes instalados).
+      </p>
+    </Section>
   );
 }

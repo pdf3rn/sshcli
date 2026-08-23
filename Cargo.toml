@@ -11,6 +11,7 @@ description = "Cross-platform SSH client with a desktop GUI"
 [workspace.dependencies]
 directories = "6.0"
 keyring = "3.6"
+portable-pty = "0.9"
 russh = "0.54"
 russh-sftp = "2.4"
 serde = { version = "1.0", features = ["derive"] }

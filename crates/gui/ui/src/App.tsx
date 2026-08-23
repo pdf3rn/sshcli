@@ -58,7 +58,7 @@ function App() {
       if (event.payload.status !== 'closed') return;
       setTabs((current) =>
         current.map((tab) =>
-          tab.kind === 'terminal' && tab.id === event.payload.id
+          (tab.kind === 'terminal' || tab.kind === 'local') && tab.id === event.payload.id
             ? { ...tab, connected: false }
             : tab,
         ),
@@ -140,6 +140,30 @@ function App() {
     }
   }, []);
 
+  const openLocalTab = useCallback(async () => {
+    if (connectingRef.current) return;
+    connectingRef.current = true;
+    setConnecting(true);
+    try {
+      const info = await invoke<{ id: string; profile: string }>('local_shell_start', {
+        columns: 120,
+        rows: 40,
+        shell: prefs.localShell || undefined,
+      });
+      setTabs((current) => [
+        ...current,
+        { kind: 'local', id: info.id, profile: info.profile, connected: true },
+      ]);
+      setActiveTabId(info.id);
+      setView('session');
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      connectingRef.current = false;
+      setConnecting(false);
+    }
+  }, [prefs.localShell]);
+
   const reorderTabs = useCallback((dragId: string, targetId: string) => {
     setTabs((current) => {
       const from = current.findIndex((tab) => tab.id === dragId);
@@ -159,6 +183,8 @@ function App() {
     const tab = current[index];
     if (tab.kind === 'terminal') {
       invoke('ssh_close', { id }).catch(() => undefined);
+    } else if (tab.kind === 'local') {
+      invoke('local_close', { id }).catch(() => undefined);
     }
     const next = current.filter((item) => item.id !== id);
     setTabs(next);
@@ -170,31 +196,56 @@ function App() {
     });
   }, []);
 
-  const reconnect = useCallback(async (sessionId: string) => {
-    const tab = tabsRef.current.find((item) => item.id === sessionId);
-    if (!tab || tab.kind !== 'terminal') return;
-    setConnecting(true);
-    try {
-      const id = await invoke<string>('ssh_connect', {
-        profileName: tab.profile,
-        columns: 120,
-        rows: 40,
-      });
-      setTabs((current) =>
-        current.map((item) =>
-          item.id === sessionId && item.kind === 'terminal'
-            ? { kind: 'terminal', id, profile: item.profile, connected: true }
-            : item,
-        ),
-      );
-      setActiveTabId(id);
-      setSplitId((value) => (value === sessionId ? null : value));
-    } catch (reason) {
-      setError(String(reason));
-    } finally {
-      setConnecting(false);
-    }
-  }, []);
+  const reconnect = useCallback(
+    async (sessionId: string) => {
+      const tab = tabsRef.current.find((item) => item.id === sessionId);
+      if (!tab || (tab.kind !== 'terminal' && tab.kind !== 'local')) return;
+      if (tab.kind === 'local') {
+        invoke('local_close', { id: sessionId }).catch(() => undefined);
+        try {
+          const info = await invoke<{ id: string; profile: string }>('local_shell_start', {
+            columns: 120,
+            rows: 40,
+            shell: prefs.localShell || undefined,
+          });
+          setTabs((current) =>
+            current.map((item) =>
+              item.id === sessionId && item.kind === 'local'
+                ? { kind: 'local', id: info.id, profile: info.profile, connected: true }
+                : item,
+            ),
+          );
+          setActiveTabId(info.id);
+          setSplitId((value) => (value === sessionId ? null : value));
+        } catch (reason) {
+          setError(String(reason));
+        }
+        return;
+      }
+      setConnecting(true);
+      try {
+        const id = await invoke<string>('ssh_connect', {
+          profileName: tab.profile,
+          columns: 120,
+          rows: 40,
+        });
+        setTabs((current) =>
+          current.map((item) =>
+            item.id === sessionId && item.kind === 'terminal'
+              ? { kind: 'terminal', id, profile: item.profile, connected: true }
+              : item,
+          ),
+        );
+        setActiveTabId(id);
+        setSplitId((value) => (value === sessionId ? null : value));
+      } catch (reason) {
+        setError(String(reason));
+      } finally {
+        setConnecting(false);
+      }
+    },
+    [prefs.localShell],
+  );
 
   const openPanel = useCallback((kind: 'sftp' | 'tunnels', profileName: string) => {
     const id = `${kind}:${profileName}`;
@@ -246,22 +297,26 @@ function App() {
     new Set(profiles.map((profile) => profile.group).filter((group): group is string => !!group)),
   ).sort();
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
-  const terminalTabs = tabs.filter((tab): tab is Extract<Tab, { kind: 'terminal' }> => tab.kind === 'terminal');
+  const shellTabs = tabs.filter(
+    (tab): tab is Extract<Tab, { kind: 'terminal' }> | Extract<Tab, { kind: 'local' }> =>
+      tab.kind === 'terminal' || tab.kind === 'local',
+  );
 
   const visibleTerminals = new Set<string>();
-  if (activeTab?.kind === 'terminal') {
+  if (activeTab?.kind === 'terminal' || activeTab?.kind === 'local') {
     visibleTerminals.add(activeTab.id);
     if (
       splitId &&
       splitId !== activeTab.id &&
-      terminalTabs.some((tab) => tab.id === splitId)
+      shellTabs.some((tab) => tab.id === splitId)
     ) {
       visibleTerminals.add(splitId);
     }
   }
 
   const canSplit =
-    activeTab?.kind === 'terminal' && terminalTabs.length >= 2;
+    (activeTab?.kind === 'terminal' || activeTab?.kind === 'local') &&
+    shellTabs.length >= 2;
 
   const toggleSplit = () => {
     if (!canSplit) return;
@@ -269,13 +324,13 @@ function App() {
       setSplitId(null);
       return;
     }
-    const candidate = terminalTabs.find((tab) => tab.id !== activeTabId);
+    const candidate = shellTabs.find((tab) => tab.id !== activeTabId);
     if (candidate) setSplitId(candidate.id);
   };
 
-  const liveSessions = terminalTabs.filter((tab) => tab.connected).length;
+  const liveSessions = shellTabs.filter((tab) => tab.connected).length;
   const liveProfileNames = new Set(
-    terminalTabs.filter((tab) => tab.connected).map((tab) => tab.profile),
+    shellTabs.filter((tab) => tab.connected).map((tab) => tab.profile),
   );
 
   return (
@@ -307,6 +362,7 @@ function App() {
             onCreate={openCreate}
             onBrowseAll={() => setView('connections')}
             onImported={refresh}
+            onOpenLocal={() => void openLocalTab()}
           />
         )}
         {view === 'connections' && (
@@ -341,7 +397,7 @@ function App() {
           )}
 
         <main className={`content ${visibleTerminals.size > 1 ? 'split' : ''}`}>
-          {terminalTabs.map((tab) => (
+          {shellTabs.map((tab) => (
             <div
               key={tab.id}
               className="pane-slot"
@@ -353,6 +409,7 @@ function App() {
                 connected={tab.connected}
                 visible={visibleTerminals.has(tab.id)}
                 prefs={prefs}
+                transport={tab.kind === 'local' ? 'local' : 'ssh'}
                 onClose={closeTab}
                 onReconnect={reconnect}
                 onCwd={rememberCwd}
@@ -444,6 +501,7 @@ function App() {
           connecting={connecting}
           onConnectProfile={(name) => void connect(name)}
           onConnectAdhoc={connectAdhoc}
+          onOpenLocal={() => void openLocalTab()}
           onClose={() => setNewConnModalOpen(false)}
         />
       )}

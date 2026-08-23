@@ -10,6 +10,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 base64 = "0.22"
+portable-pty.workspace = true
 russh.workspace = true
 russh-sftp.workspace = true
 serde.workspace = true

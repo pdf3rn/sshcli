@@ -16,5 +16,6 @@ export type Profile = {
 
 export type Tab =
   | { kind: 'terminal'; id: string; profile: string; connected: boolean }
+  | { kind: 'local'; id: string; profile: string; connected: boolean }
   | { kind: 'sftp'; id: string; profile: string }
   | { kind: 'tunnels'; id: string; profile: string };

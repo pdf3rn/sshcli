@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { Profile } from './types';
 import { attemptAdhoc, isValidAdhocTarget } from './adhoc';
 import { useDialog } from './use-dialog';
@@ -9,6 +10,7 @@ type Props = {
   connecting: boolean;
   onConnectProfile: (name: string) => void;
   onConnectAdhoc: (target: string, password?: string) => Promise<void>;
+  onOpenLocal: () => void;
   onClose: () => void;
 };
 
@@ -18,6 +20,7 @@ export default function NewConnectionModal({
   connecting,
   onConnectProfile,
   onConnectAdhoc,
+  onOpenLocal,
   onClose,
 }: Props) {
   const [query, setQuery] = useState('');
@@ -25,7 +28,17 @@ export default function NewConnectionModal({
   const [adhocPassword, setAdhocPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detectedShell, setDetectedShell] = useState('');
   const dialogRef = useDialog<HTMLDivElement>(onClose);
+
+  useEffect(() => {
+    invoke<{ detected: string }>('local_shell_detect')
+      .then((info) => {
+        const base = info.detected.split('/').pop();
+        if (base) setDetectedShell(base);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -183,6 +196,22 @@ export default function NewConnectionModal({
             </p>
           )}
         </form>
+
+        <div className="modal-section modal-divider modal-local-row">
+          <button
+            type="button"
+            className="modal-profile-row"
+            onClick={() => {
+              onClose();
+              onOpenLocal();
+            }}
+          >
+            <span className="recent-name">Terminal local</span>
+            <span className="modal-profile-endpoint">
+              {detectedShell ? `Intérprete: ${detectedShell}` : 'Detectando intérprete…'}
+            </span>
+          </button>
+        </div>
 
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={onClose}>

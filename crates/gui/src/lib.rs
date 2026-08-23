@@ -1,4 +1,5 @@
 mod commands;
+mod local_shell;
 mod session;
 mod sftp_session;
 mod telemetry;
@@ -8,6 +9,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(session::init_state())
         .manage(sftp_session::init_state())
+        .manage(local_shell::init_state())
         .manage(tunnel::init_state())
         .manage(telemetry::init_state())
         .invoke_handler(tauri::generate_handler![
@@ -27,6 +29,11 @@ pub fn run() {
             session::ssh_exec,
             session::ssh_list,
             session::ssh_close,
+            local_shell::local_shell_detect,
+            local_shell::local_shell_start,
+            local_shell::local_write,
+            local_shell::local_resize,
+            local_shell::local_close,
             sftp_session::sftp_connect,
             sftp_session::sftp_close,
             sftp_session::sftp_list_dir,

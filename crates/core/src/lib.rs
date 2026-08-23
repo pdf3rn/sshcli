@@ -9,6 +9,7 @@ pub mod error;
 pub mod keys;
 pub mod profiles;
 pub mod sftp;
+pub mod shells;
 pub mod ssh;
 
 pub use error::{AppError, AppResult};

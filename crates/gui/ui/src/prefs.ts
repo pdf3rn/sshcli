@@ -15,6 +15,7 @@ export type Prefs = {
   telemetryPanelOpen: boolean;
   remoteExplorerEnabled: boolean;
   remoteExplorerOpen: boolean;
+  localShell: string;
 };
 
 export const FONT_OPTIONS = [
@@ -51,6 +52,7 @@ export const DEFAULT_PREFS: Prefs = {
   telemetryPanelOpen: false,
   remoteExplorerEnabled: false,
   remoteExplorerOpen: false,
+  localShell: '',
 };
 
 const STORAGE_KEY = 'sshcli.prefs.v1';

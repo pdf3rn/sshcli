@@ -91,6 +91,7 @@ type Props = {
   connected: boolean;
   visible: boolean;
   prefs: Prefs;
+  transport?: 'ssh' | 'local';
   onClose: (sessionId: string) => void;
   onReconnect: (sessionId: string) => void;
   onCwd?: (sessionId: string, path: string) => void;
@@ -101,10 +102,13 @@ export default function TerminalTab({
   connected,
   visible,
   prefs,
+  transport = 'ssh',
   onClose,
   onReconnect,
   onCwd,
 }: Props) {
+  const writeCommand = transport === 'local' ? 'local_write' : 'ssh_write';
+  const resizeCommand = transport === 'local' ? 'local_resize' : 'ssh_resize';
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -170,7 +174,7 @@ export default function TerminalTab({
       fit.fit();
       const { cols, rows } = term;
       if (cols > 0 && rows > 0) {
-        invoke('ssh_resize', { id: sessionId, columns: cols, rows }).catch(() => undefined);
+        invoke(resizeCommand, { id: sessionId, columns: cols, rows }).catch(() => undefined);
       }
     };
 
@@ -182,8 +186,8 @@ export default function TerminalTab({
       const bytes = new TextEncoder().encode(data);
       let binary = '';
       for (const byte of bytes) binary += String.fromCharCode(byte);
-      invoke('ssh_write', { id: sessionId, data: btoa(binary) }).catch((reason) =>
-        console.error('ssh_write', reason),
+      invoke(writeCommand, { id: sessionId, data: btoa(binary) }).catch((reason) =>
+        console.error('write', reason),
       );
     });
 
