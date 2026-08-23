@@ -338,8 +338,12 @@ function App() {
             Cerrar pestaña
           </button>
           {connecting && <span className="muted small topbar-note">Conectando…</span>}
-          <span className="topbar-hint muted small">
-            Ctrl+T nueva sesión · Ctrl+W cerrar · Ctrl+Tab cambiar
+          <span
+            className="shortcut-hint"
+            role="note"
+            title="Atajos: Ctrl+T nueva sesión · Ctrl+W cerrar pestaña · Ctrl+Tab / Ctrl+PgUp-PgDn cambiar pestaña"
+          >
+            Atajos
           </span>
         </div>
 
@@ -419,7 +423,11 @@ function App() {
               <div className="details">
                 <h2>Workspace</h2>
                 <p className="muted">
-                  Selecciona una conexión y pulsa doble clic para abrir una sesión SSH.
+                  Selecciona una conexión y pulsa el botón <strong>→</strong> (o doble clic sobre
+                  ella) para abrir una sesión SSH.
+                </p>
+                <p className="muted small">
+                  SFTP y túneles se abren como pestañas desde la vista de cada perfil.
                 </p>
               </div>
             ))}
