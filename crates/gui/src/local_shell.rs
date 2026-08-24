@@ -52,17 +52,6 @@ struct StatusPayload {
     message: String,
 }
 
-fn login_args(path: &str) -> &'static [&'static str] {
-    let name = PathBuf::from(path)
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_default();
-    match name.as_str() {
-        "bash" | "zsh" | "fish" | "ksh" | "mksh" => &["-l"],
-        _ => &[],
-    }
-}
-
 #[tauri::command]
 pub fn local_shell_detect() -> Result<serde_json::Value, String> {
     let detected = shells::detect_shell().ok_or("no se encontró ningún intérprete local")?;
@@ -105,9 +94,6 @@ pub fn local_shell_start(
         .map_err(|error| error.to_string())?;
 
     let mut command = CommandBuilder::new(&shell_str);
-    for arg in login_args(&shell_str) {
-        command.arg(arg);
-    }
     command.cwd(home);
     command.env("TERM", "xterm-256color");
 
@@ -277,10 +263,7 @@ mod tests {
             })
             .expect("openpty");
         let path = shell.display().to_string();
-        let mut command = CommandBuilder::new(&path);
-        for arg in login_args(&path) {
-            command.arg(arg);
-        }
+        let command = CommandBuilder::new(&path);
         let mut child = pair.slave.spawn_command(command).expect("spawn del shell");
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().expect("reader");

@@ -12,7 +12,9 @@ type Props = {
 };
 
 function tabLabel(tab: Tab, seen: Map<string, number>): string {
-  if (tab.kind !== 'terminal') return `${tab.profile} · ${tab.kind === 'sftp' ? 'SFTP' : 'Túneles'}`;
+  if (tab.kind === 'sftp' || tab.kind === 'tunnels') {
+    return `${tab.profile} · ${tab.kind === 'sftp' ? 'SFTP' : 'Túneles'}`;
+  }
   const count = (seen.get(tab.profile) ?? 0) + 1;
   seen.set(tab.profile, count);
   return count === 1 ? tab.profile : `${tab.profile} ·${count}`;
@@ -69,14 +71,14 @@ export default function TabsBar({ tabs, activeId, onSelect, onClose, onReorder, 
     <div className="tabbar" role="tablist" aria-label="Sesiones abiertas">
       {tabs.map((tab, index) => {
         const name = tabLabel(tab, seen);
+        const isShell = tab.kind === 'terminal' || tab.kind === 'local';
         const state =
-          tab.kind === 'terminal' ? (tab.connected ? '' : ' (desconectado)') : '';
-        const dotClass =
-          tab.kind === 'terminal'
-            ? tab.connected
-              ? 'tab-dot live'
-              : 'tab-dot dead'
-            : 'tab-dot tool';
+          isShell ? (tab.connected ? '' : ' (desconectado)') : '';
+        const dotClass = isShell
+          ? tab.connected
+            ? 'tab-dot live'
+            : 'tab-dot dead'
+          : 'tab-dot tool';
         return (
           <div
             key={tab.id}
