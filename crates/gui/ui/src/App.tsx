@@ -468,6 +468,7 @@ function App() {
                 setDropZone(null);
                 dropZoneRef.current = null;
               }}
+              draggingId={draggingShell}
             />
           )}
 
@@ -489,16 +490,6 @@ function App() {
             if (!draggingShell) return;
             event.preventDefault();
             handleDropZone(dropZoneRef.current);
-          }}
-          onDragLeave={(event) => {
-            if (
-              draggingShell &&
-              !event.currentTarget.contains(event.relatedTarget as Node)
-            ) {
-              setDraggingShell(null);
-              setDropZone(null);
-              dropZoneRef.current = null;
-            }
           }}
         >
           {shellTabs.map((tab) => {

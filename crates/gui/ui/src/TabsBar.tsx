@@ -11,6 +11,7 @@ type Props = {
   onAdd: () => void;
   onShellDragStart?: (id: string) => void;
   onShellDragEnd?: () => void;
+  draggingId?: string | null;
 };
 
 function tabLabel(tab: Tab, seen: Map<string, number>): string {
@@ -31,6 +32,7 @@ export default function TabsBar({
   onAdd,
   onShellDragStart,
   onShellDragEnd,
+  draggingId,
 }: Props) {
   const seen = new Map<string, number>();
   const tabRefs = useRef(new Map<string, HTMLDivElement | null>());
@@ -99,7 +101,7 @@ export default function TabsBar({
             role="tab"
             aria-selected={tab.id === activeId}
             tabIndex={tab.id === activeId ? 0 : -1}
-            className={`tab ${tab.id === activeId ? 'tab-active' : ''}`}
+            className={`tab ${tab.id === activeId ? 'tab-active' : ''} ${draggingId === tab.id ? 'dragging' : ''}`}
             aria-label={`${name}${state}`}
             title={`${name}${state}`}
             draggable
@@ -107,15 +109,15 @@ export default function TabsBar({
               dragId.current = tab.id;
               event.dataTransfer.effectAllowed = 'move';
               event.dataTransfer.setData('text/plain', tab.id);
-              event.currentTarget.classList.add('dragging');
               if (tab.kind === 'terminal' || tab.kind === 'local') {
                 onShellDragStart?.(tab.id);
               }
             }}
             onDragEnd={(event) => {
               dragId.current = null;
-              event.currentTarget.classList.remove('dragging');
-              onShellDragEnd?.();
+              if (tab.kind === 'terminal' || tab.kind === 'local') {
+                onShellDragEnd?.();
+              }
             }}
             onDragOver={(event) => {
               if (!dragId.current || dragId.current === tab.id) return;
