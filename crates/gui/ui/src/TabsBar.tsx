@@ -9,6 +9,8 @@ type Props = {
   onClose: (id: string) => void;
   onReorder: (dragId: string, targetId: string) => void;
   onAdd: () => void;
+  onShellDragStart?: (id: string) => void;
+  onShellDragEnd?: () => void;
 };
 
 function tabLabel(tab: Tab, seen: Map<string, number>): string {
@@ -20,7 +22,16 @@ function tabLabel(tab: Tab, seen: Map<string, number>): string {
   return count === 1 ? tab.profile : `${tab.profile} ·${count}`;
 }
 
-export default function TabsBar({ tabs, activeId, onSelect, onClose, onReorder, onAdd }: Props) {
+export default function TabsBar({
+  tabs,
+  activeId,
+  onSelect,
+  onClose,
+  onReorder,
+  onAdd,
+  onShellDragStart,
+  onShellDragEnd,
+}: Props) {
   const seen = new Map<string, number>();
   const tabRefs = useRef(new Map<string, HTMLDivElement | null>());
   const dragId = useRef<string | null>(null);
@@ -97,10 +108,14 @@ export default function TabsBar({ tabs, activeId, onSelect, onClose, onReorder, 
               event.dataTransfer.effectAllowed = 'move';
               event.dataTransfer.setData('text/plain', tab.id);
               event.currentTarget.classList.add('dragging');
+              if (tab.kind === 'terminal' || tab.kind === 'local') {
+                onShellDragStart?.(tab.id);
+              }
             }}
             onDragEnd={(event) => {
               dragId.current = null;
               event.currentTarget.classList.remove('dragging');
+              onShellDragEnd?.();
             }}
             onDragOver={(event) => {
               if (!dragId.current || dragId.current === tab.id) return;

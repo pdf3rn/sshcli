@@ -29,7 +29,10 @@ function App() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [splitId, setSplitId] = useState<string | null>(null);
+  type SplitView = { firstId: string; secondId: string; dir: 'row' | 'col' };
+  const [split, setSplit] = useState<SplitView | null>(null);
+  const [draggingShell, setDraggingShell] = useState<string | null>(null);
+  const [dropZone, setDropZone] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [tabCwds, setTabCwds] = useState<Record<string, string>>({});
 
@@ -188,7 +191,9 @@ function App() {
     }
     const next = current.filter((item) => item.id !== id);
     setTabs(next);
-    setSplitId((value) => (value === id ? null : value));
+    setSplit((value) =>
+      value && (value.firstId === id || value.secondId === id) ? null : value,
+    );
     setActiveTabId((active) => {
       if (active !== id) return active;
       const fallback = next[Math.min(index, next.length - 1)];
@@ -216,7 +221,15 @@ function App() {
             ),
           );
           setActiveTabId(info.id);
-          setSplitId((value) => (value === sessionId ? null : value));
+          setSplit((value) =>
+            !value
+              ? value
+              : {
+                  ...value,
+                  firstId: value.firstId === sessionId ? info.id : value.firstId,
+                  secondId: value.secondId === sessionId ? info.id : value.secondId,
+                },
+          );
         } catch (reason) {
           setError(String(reason));
         }
@@ -237,7 +250,15 @@ function App() {
           ),
         );
         setActiveTabId(id);
-        setSplitId((value) => (value === sessionId ? null : value));
+        setSplit((value) =>
+          !value
+            ? value
+            : {
+                ...value,
+                firstId: value.firstId === sessionId ? id : value.firstId,
+                secondId: value.secondId === sessionId ? id : value.secondId,
+              },
+        );
       } catch (reason) {
         setError(String(reason));
       } finally {
@@ -302,15 +323,18 @@ function App() {
       tab.kind === 'terminal' || tab.kind === 'local',
   );
 
+  const splitPartner =
+    split && (split.firstId === activeTab?.id || split.secondId === activeTab?.id)
+      ? split.firstId === activeTab?.id
+        ? split.secondId
+        : split.firstId
+      : null;
+
   const visibleTerminals = new Set<string>();
   if (activeTab?.kind === 'terminal' || activeTab?.kind === 'local') {
     visibleTerminals.add(activeTab.id);
-    if (
-      splitId &&
-      splitId !== activeTab.id &&
-      shellTabs.some((tab) => tab.id === splitId)
-    ) {
-      visibleTerminals.add(splitId);
+    if (splitPartner && shellTabs.some((tab) => tab.id === splitPartner)) {
+      visibleTerminals.add(splitPartner);
     }
   }
 
@@ -320,12 +344,53 @@ function App() {
 
   const toggleSplit = () => {
     if (!canSplit) return;
-    if (splitId) {
-      setSplitId(null);
+    if (split) {
+      setSplit(null);
       return;
     }
-    const candidate = shellTabs.find((tab) => tab.id !== activeTabId);
-    if (candidate) setSplitId(candidate.id);
+    if (activeTabId) {
+      const candidate = shellTabs.find((tab) => tab.id !== activeTabId);
+      if (candidate) setSplit({ firstId: activeTabId, secondId: candidate.id, dir: 'row' });
+    }
+  };
+
+  const dropZoneRef = useRef<string | null>(null);
+
+  const handleDropZone = (zone: string | null) => {
+    const id = draggingShell;
+    setDraggingShell(null);
+    setDropZone(null);
+    dropZoneRef.current = null;
+    if (!id || !zone || zone === 'center') return;
+    const dir: 'row' | 'col' = zone === 'left' || zone === 'right' ? 'row' : 'col';
+    setSplit((current) => {
+      if (current && current.firstId !== id && current.secondId !== id) {
+        switch (zone) {
+          case 'left':
+          case 'up':
+            return { firstId: id, secondId: current.secondId, dir };
+          default:
+            return { firstId: current.firstId, secondId: id, dir };
+        }
+      }
+      const memberOther =
+        current && (current.firstId === id || current.secondId === id)
+          ? current.firstId === id
+            ? current.secondId
+            : current.firstId
+          : null;
+      const partner =
+        memberOther ?? (activeRef.current !== id ? activeRef.current : null) ??
+        shellTabs.find((tab) => tab.id !== id)?.id ?? null;
+      if (!partner || partner === id) return current;
+      switch (zone) {
+        case 'left':
+        case 'up':
+          return { firstId: id, secondId: partner, dir };
+        default:
+          return { firstId: partner, secondId: id, dir };
+      }
+    });
   };
 
   const liveSessions = shellTabs.filter((tab) => tab.connected).length;
@@ -393,16 +458,62 @@ function App() {
               onClose={closeTab}
               onReorder={reorderTabs}
               onAdd={() => setNewConnModalOpen(true)}
+              onShellDragStart={(id) => {
+                setDraggingShell(id);
+                dropZoneRef.current = null;
+                setDropZone(null);
+              }}
+              onShellDragEnd={() => {
+                setDraggingShell(null);
+                setDropZone(null);
+                dropZoneRef.current = null;
+              }}
             />
           )}
 
-        <main className={`content ${visibleTerminals.size > 1 ? 'split' : ''}`}>
-          {shellTabs.map((tab) => (
+        <main
+          className={`content ${split ? (split.dir === 'row' ? 'split-h' : 'split-v') : ''}`}
+          onDragOver={(event) => {
+            if (!draggingShell) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            const zone =
+              (event.target as HTMLElement).closest<HTMLElement>('[data-dropzone]')
+                ?.dataset.dropzone ?? null;
+            if (zone !== dropZoneRef.current) {
+              dropZoneRef.current = zone;
+              setDropZone(zone);
+            }
+          }}
+          onDrop={(event) => {
+            if (!draggingShell) return;
+            event.preventDefault();
+            handleDropZone(dropZoneRef.current);
+          }}
+          onDragLeave={(event) => {
+            if (
+              draggingShell &&
+              !event.currentTarget.contains(event.relatedTarget as Node)
+            ) {
+              setDraggingShell(null);
+              setDropZone(null);
+              dropZoneRef.current = null;
+            }
+          }}
+        >
+          {shellTabs.map((tab) => {
+            const order =
+              split?.firstId === tab.id
+                ? 0
+                : split?.secondId === tab.id
+                  ? 2
+                  : undefined;
+            return (
             <div
               key={tab.id}
               className="pane-slot"
               data-profile={tab.profile}
-              style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none' }}
+              style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none', order }}
             >
               <TerminalTab
                 sessionId={tab.id}
@@ -415,7 +526,8 @@ function App() {
                 onCwd={rememberCwd}
               />
             </div>
-          ))}
+            );
+          })}
 
           {activeTab?.kind === 'sftp' && (
             <SftpPanel profile={activeTab.profile} />
@@ -458,6 +570,37 @@ function App() {
             </div>
           )}
 
+          {draggingShell && view === 'session' && (
+            <div className="drop-overlay" aria-hidden="true">
+              <div
+                data-dropzone="left"
+                className={`drop-zone z-side ${dropZone === 'left' ? 'hover' : ''}`}
+              >
+                Izquierda
+              </div>
+              <div className="drop-middle">
+                <div
+                  data-dropzone="up"
+                  className={`drop-zone z-mid ${dropZone === 'up' ? 'hover' : ''}`}
+                >
+                  Arriba
+                </div>
+                <div
+                  data-dropzone="down"
+                  className={`drop-zone z-mid ${dropZone === 'down' ? 'hover' : ''}`}
+                >
+                  Abajo
+                </div>
+              </div>
+              <div
+                data-dropzone="right"
+                className={`drop-zone z-side ${dropZone === 'right' ? 'hover' : ''}`}
+              >
+                Derecha
+              </div>
+            </div>
+          )}
+
         </main>
         </div>
       </div>
@@ -466,7 +609,7 @@ function App() {
         liveSessions={liveSessions}
         connecting={connecting}
         canSplit={canSplit}
-        splitActive={splitId !== null}
+        splitActive={split !== null}
         onToggleSplit={toggleSplit}
         telemetryAvailable={
           activeTab?.kind === 'terminal' &&

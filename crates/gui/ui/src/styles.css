@@ -1410,6 +1410,57 @@ button.explorer-row:focus-visible:not(:disabled) {
   border-left: 1px solid var(--border);
 }
 
+.content.split-v .pane-slot + .pane-slot {
+  border-left: none;
+  border-top: 1px solid var(--border);
+}
+
+/* Overlay de zonas al arrastrar una pestaña de terminal */
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  background: rgba(5, 10, 16, 0.55);
+}
+
+.drop-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-2);
+  border: 1px dashed rgba(86, 253, 147, 0.6);
+  border-radius: var(--radius-md);
+  background: rgba(86, 253, 147, 0.06);
+  color: var(--accent);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+
+.drop-zone.hover,
+.drop-zone:hover {
+  background: rgba(86, 253, 147, 0.2);
+  border-style: solid;
+}
+
+.drop-zone.z-side {
+  width: 33%;
+}
+
+.drop-middle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12% 0;
+}
+
+.drop-zone.z-mid {
+  flex: 1;
+}
+
 .details {
   flex: 1;
   min-height: 0;
@@ -2003,7 +2054,8 @@ button.explorer-row:focus-visible:not(:disabled) {
 }
 
 /* Etiqueta de perfil solo en vista dividida */
-.content.split .pane-slot::after {
+.content.split-h .pane-slot::after,
+.content.split-v .pane-slot::after {
   content: attr(data-profile);
   position: absolute;
   top: var(--space-2);
