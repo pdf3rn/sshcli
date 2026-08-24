@@ -1410,6 +1410,10 @@ button.explorer-row:focus-visible:not(:disabled) {
   border-left: 1px solid var(--border);
 }
 
+.content.split-v {
+  flex-direction: column;
+}
+
 .content.split-v .pane-slot + .pane-slot {
   border-left: none;
   border-top: 1px solid var(--border);
