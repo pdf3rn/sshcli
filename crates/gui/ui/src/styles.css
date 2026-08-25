@@ -1402,6 +1402,7 @@ button.explorer-row:focus-visible:not(:disabled) {
 .content > .pane-slot {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   position: relative;
   display: flex;
 }
