@@ -11,7 +11,7 @@ import SftpPanel from './SftpPanel';
 import TelemetryPanel from './TelemetryPanel';
 import StatusBar from './StatusBar';
 import TabsBar from './TabsBar';
-import TerminalTab from './TerminalTab';
+import TerminalTab, { focusTerminal } from './TerminalTab';
 import TopBar from './TopBar';
 import TunnelPanel from './TunnelPanel';
 import ViewPlaceholder from './ViewPlaceholder';
@@ -454,7 +454,10 @@ function App() {
             <TabsBar
               tabs={tabs}
               activeId={activeTabId}
-              onSelect={setActiveTabId}
+              onSelect={(id) => {
+                setActiveTabId(id);
+                focusTerminal(id);
+              }}
               onClose={closeTab}
               onReorder={reorderTabs}
               onAdd={() => setNewConnModalOpen(true)}

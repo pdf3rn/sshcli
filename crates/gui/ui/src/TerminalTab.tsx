@@ -97,6 +97,17 @@ type Props = {
   onCwd?: (sessionId: string, path: string) => void;
 };
 
+const focusRegistry = new Map<string, () => void>();
+
+export function focusTerminal(sessionId: string) {
+  const focus = focusRegistry.get(sessionId);
+  if (!focus) return;
+  focus();
+  requestAnimationFrame(() => {
+    focusRegistry.get(sessionId)?.();
+  });
+}
+
 export default function TerminalTab({
   sessionId,
   connected,
@@ -157,6 +168,7 @@ export default function TerminalTab({
     terminalRef.current = term;
     fitRef.current = fit;
     searchRef.current = search;
+    focusRegistry.set(sessionId, () => term.focus());
 
     let disposed = false;
 
@@ -242,6 +254,7 @@ export default function TerminalTab({
 
     return () => {
       disposed = true;
+      focusRegistry.delete(sessionId);
       dataListener.dispose();
       selectionListener.dispose();
       containerRef.current?.removeEventListener('contextmenu', onContextMenu);
