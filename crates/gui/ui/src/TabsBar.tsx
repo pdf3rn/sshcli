@@ -109,7 +109,10 @@ export default function TabsBar({
               dragId.current = tab.id;
               event.dataTransfer.effectAllowed = 'move';
               event.dataTransfer.setData('text/plain', tab.id);
-              if (tab.kind === 'terminal' || tab.kind === 'local') {
+              if (
+                tab.id !== activeId &&
+                (tab.kind === 'terminal' || tab.kind === 'local')
+              ) {
                 onShellDragStart?.(tab.id);
               }
             }}

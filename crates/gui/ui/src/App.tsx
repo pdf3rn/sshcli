@@ -489,7 +489,18 @@ function App() {
           onDrop={(event) => {
             if (!draggingShell) return;
             event.preventDefault();
-            handleDropZone(dropZoneRef.current);
+            const rect = event.currentTarget.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            let zone: string | null = null;
+            if (x < rect.width / 3) {
+              zone = 'left';
+            } else if (x > (rect.width * 2) / 3) {
+              zone = 'right';
+            } else {
+              zone = y < rect.height / 2 ? 'up' : 'down';
+            }
+            handleDropZone(zone);
           }}
         >
           {shellTabs.map((tab) => {
@@ -561,33 +572,31 @@ function App() {
             </div>
           )}
 
-          {draggingShell && view === 'session' && (
+          {draggingShell && view === 'session' && shellTabs.length > 1 && (
             <div className="drop-overlay" aria-hidden="true">
               <div
                 data-dropzone="left"
-                className={`drop-zone z-side ${dropZone === 'left' ? 'hover' : ''}`}
+                className={`drop-zone z-left ${dropZone === 'left' ? 'hover' : ''}`}
               >
                 Izquierda
               </div>
-              <div className="drop-middle">
-                <div
-                  data-dropzone="up"
-                  className={`drop-zone z-mid ${dropZone === 'up' ? 'hover' : ''}`}
-                >
-                  Arriba
-                </div>
-                <div
-                  data-dropzone="down"
-                  className={`drop-zone z-mid ${dropZone === 'down' ? 'hover' : ''}`}
-                >
-                  Abajo
-                </div>
-              </div>
               <div
                 data-dropzone="right"
-                className={`drop-zone z-side ${dropZone === 'right' ? 'hover' : ''}`}
+                className={`drop-zone z-right ${dropZone === 'right' ? 'hover' : ''}`}
               >
                 Derecha
+              </div>
+              <div
+                data-dropzone="up"
+                className={`drop-zone z-up ${dropZone === 'up' ? 'hover' : ''}`}
+              >
+                Arriba
+              </div>
+              <div
+                data-dropzone="down"
+                className={`drop-zone z-down ${dropZone === 'down' ? 'hover' : ''}`}
+              >
+                Abajo
               </div>
             </div>
           )}

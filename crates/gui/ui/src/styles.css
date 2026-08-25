@@ -1429,10 +1429,10 @@ button.explorer-row:focus-visible:not(:disabled) {
 }
 
 .drop-zone {
+  position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: var(--space-2);
   border: 1px dashed rgba(86, 253, 147, 0.6);
   border-radius: var(--radius-md);
   background: rgba(86, 253, 147, 0.06);
@@ -1450,19 +1450,32 @@ button.explorer-row:focus-visible:not(:disabled) {
   border-style: solid;
 }
 
-.drop-zone.z-side {
-  width: 33%;
+.drop-zone.z-left {
+  top: var(--space-2);
+  bottom: var(--space-2);
+  left: var(--space-2);
+  width: 30%;
 }
 
-.drop-middle {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 12% 0;
+.drop-zone.z-right {
+  top: var(--space-2);
+  bottom: var(--space-2);
+  right: var(--space-2);
+  width: 30%;
 }
 
-.drop-zone.z-mid {
-  flex: 1;
+.drop-zone.z-up {
+  top: var(--space-2);
+  left: calc(30% + var(--space-4));
+  right: calc(30% + var(--space-4));
+  height: 40%;
+}
+
+.drop-zone.z-down {
+  bottom: var(--space-2);
+  left: calc(30% + var(--space-4));
+  right: calc(30% + var(--space-4));
+  height: 40%;
 }
 
 .details {
