@@ -1,6 +1,8 @@
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import type { Tab } from './types';
 import { PlusIcon } from './icons';
+
+type ShellTab = { kind: 'terminal'; id: string; profile: string; connected: boolean } | { kind: 'local'; id: string; profile: string; connected: boolean };
 
 type Props = {
   tabs: Tab[];
@@ -12,7 +14,13 @@ type Props = {
   onShellDragStart?: (id: string) => void;
   onShellDragEnd?: () => void;
   draggingId?: string | null;
+  groupMembers?: ShellTab[] | null;
+  lastGroupMemberId?: string | null;
 };
+
+type BarItem =
+  | { kind: 'tab'; tab: Tab; key: string }
+  | { kind: 'group'; members: ShellTab[]; key: string };
 
 function tabLabel(tab: Tab, seen: Map<string, number>): string {
   if (tab.kind === 'sftp' || tab.kind === 'tunnels') {
@@ -33,41 +41,74 @@ export default function TabsBar({
   onShellDragStart,
   onShellDragEnd,
   draggingId,
+  groupMembers,
+  lastGroupMemberId,
 }: Props) {
   const seen = new Map<string, number>();
   const tabRefs = useRef(new Map<string, HTMLDivElement | null>());
   const dragId = useRef<string | null>(null);
 
-  const jump = (index: number) => {
-    const target = tabs[index];
-    if (!target) return;
-    onSelect(target.id);
-    requestAnimationFrame(() => tabRefs.current.get(target.id)?.focus());
+  const groupIds = useMemo(
+    () => (groupMembers && groupMembers.length > 1 ? new Set(groupMembers.map((t) => t.id)) : null),
+    [groupMembers],
+  );
+
+  const items: BarItem[] = useMemo(() => {
+    if (!groupIds || !groupMembers) return tabs.map((t) => ({ kind: 'tab' as const, tab: t, key: t.id }));
+    const result: BarItem[] = [];
+    let inserted = false;
+    for (const tab of tabs) {
+      if (groupIds.has(tab.id)) {
+        if (!inserted) {
+          result.push({ kind: 'group', members: groupMembers, key: `group:${groupMembers[0].id}` });
+          inserted = true;
+        }
+        continue;
+      }
+      result.push({ kind: 'tab', tab, key: tab.id });
+    }
+    return result;
+  }, [tabs, groupIds, groupMembers]);
+
+  const groupTargetId = (members: ShellTab[]): string => {
+    if (lastGroupMemberId && members.some((m) => m.id === lastGroupMemberId)) return lastGroupMemberId;
+    return members[0].id;
   };
 
-  const move = (id: string, delta: number) => {
-    const from = tabs.findIndex((tab) => tab.id === id);
+  const jump = (index: number) => {
+    const item = items[index];
+    if (!item) return;
+    const targetId = item.kind === 'group' ? groupTargetId(item.members) : item.tab.id;
+    onSelect(targetId);
+    requestAnimationFrame(() => tabRefs.current.get(item.key)?.focus());
+  };
+
+  const move = (item: BarItem, delta: number) => {
+    if (item.kind === 'group') return;
+    const from = items.findIndex((i) => i.kind === 'tab' && i.tab.id === item.tab.id);
     const to = from + delta;
-    if (from === -1 || to < 0 || to >= tabs.length) return;
-    onReorder(id, tabs[to].id);
+    if (from === -1 || to < 0 || to >= items.length) return;
+    const target = items[to];
+    if (target.kind === 'group') return;
+    onReorder(item.tab.id, target.tab.id);
   };
 
   const onKeyDown = (event: React.KeyboardEvent, index: number) => {
-    const current = tabs[index];
+    const current = items[index];
     if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
       event.preventDefault();
       event.stopPropagation();
-      move(current.id, event.key === 'ArrowLeft' ? -1 : 1);
+      move(current, event.key === 'ArrowLeft' ? -1 : 1);
       return;
     }
     switch (event.key) {
       case 'ArrowRight':
         event.preventDefault();
-        jump((index + 1) % tabs.length);
+        jump((index + 1) % items.length);
         break;
       case 'ArrowLeft':
         event.preventDefault();
-        jump((index - 1 + tabs.length) % tabs.length);
+        jump((index - 1 + items.length) % items.length);
         break;
       case 'Home':
         event.preventDefault();
@@ -75,18 +116,52 @@ export default function TabsBar({
         break;
       case 'End':
         event.preventDefault();
-        jump(tabs.length - 1);
+        jump(items.length - 1);
         break;
     }
   };
 
   return (
     <div className="tabbar" role="tablist" aria-label="Sesiones abiertas">
-      {tabs.map((tab, index) => {
+      {items.map((item, index) => {
+        if (item.kind === 'group') {
+          const isActive = item.members.some((m) => m.id === activeId);
+          const label = item.members.map((m) => m.profile).join(' | ');
+          return (
+            <div
+              key={item.key}
+              ref={(el) => { tabRefs.current.set(item.key, el); }}
+              role="tab"
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              className={`tab tab-group ${isActive ? 'tab-active' : ''}`}
+              aria-label={`Grupo: ${label}`}
+              title={`Grupo: ${label}`}
+              onClick={() => onSelect(groupTargetId(item.members))}
+              onKeyDown={(event) => onKeyDown(event, index)}
+            >
+              <span className="tab-group-glyph" aria-hidden="true">⧉</span>
+              <span className="tab-label">{label}</span>
+              <button
+                type="button"
+                className="tab-close"
+                aria-label={`Cerrar grupo ${label}`}
+                title={`Cerrar grupo ${label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onClose(groupTargetId(item.members));
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          );
+        }
+
+        const tab = item.tab;
         const name = tabLabel(tab, seen);
         const isShell = tab.kind === 'terminal' || tab.kind === 'local';
-        const state =
-          isShell ? (tab.connected ? '' : ' (desconectado)') : '';
+        const state = isShell ? (tab.connected ? '' : ' (desconectado)') : '';
         const dotClass = isShell
           ? tab.connected
             ? 'tab-dot live'
@@ -95,9 +170,7 @@ export default function TabsBar({
         return (
           <div
             key={tab.id}
-            ref={(el) => {
-              tabRefs.current.set(tab.id, el);
-            }}
+            ref={(el) => { tabRefs.current.set(tab.id, el); }}
             role="tab"
             aria-selected={tab.id === activeId}
             tabIndex={tab.id === activeId ? 0 : -1}
@@ -109,14 +182,11 @@ export default function TabsBar({
               dragId.current = tab.id;
               event.dataTransfer.effectAllowed = 'move';
               event.dataTransfer.setData('text/plain', tab.id);
-              if (
-                tab.id !== activeId &&
-                (tab.kind === 'terminal' || tab.kind === 'local')
-              ) {
+              if (tab.id !== activeId && (tab.kind === 'terminal' || tab.kind === 'local')) {
                 onShellDragStart?.(tab.id);
               }
             }}
-            onDragEnd={(event) => {
+            onDragEnd={() => {
               dragId.current = null;
               if (tab.kind === 'terminal' || tab.kind === 'local') {
                 onShellDragEnd?.();

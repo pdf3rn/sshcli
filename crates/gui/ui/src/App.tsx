@@ -66,6 +66,7 @@ function App() {
   tabsRef.current = tabs;
   const activeRef = useRef<string | null>(null);
   activeRef.current = activeTabId;
+  const lastGroupMemberRef = useRef<string | null>(null);
 
   const refresh = useCallback(
     () =>
@@ -211,9 +212,11 @@ function App() {
     }
     const next = current.filter((item) => item.id !== id);
     setTabs(next);
-    setSplit((value) =>
-      value ? removeLeaf(value, id) : null,
-    );
+    setSplit((value) => {
+      if (!value) return null;
+      const result = removeLeaf(value, id);
+      return result && 'dir' in result ? result : null;
+    });
     setActiveTabId((active) => {
       if (active !== id) return active;
       const fallback = next[Math.min(index, next.length - 1)];
@@ -333,26 +336,16 @@ function App() {
       tab.kind === 'terminal' || tab.kind === 'local',
   );
 
-  const splitPartner =
-    split && activeTab
-      ? (() => {
-          const leaves = paneLeaves(split);
-          const idx = leaves.indexOf(activeTab.id);
-          if (idx === -1) return null;
-          const otherIdx = idx === 0 ? 1 : 0;
-          return leaves[otherIdx] ?? null;
-        })()
-      : null;
-
   const visibleTerminals = new Set<string>();
-  if (activeTab?.kind === 'terminal' || activeTab?.kind === 'local') {
-    visibleTerminals.add(activeTab.id);
-    if (split) {
+  if (activeTab && (activeTab.kind === 'terminal' || activeTab.kind === 'local')) {
+    if (split && containsLeaf(split, activeTab.id)) {
       for (const leafId of paneLeaves(split)) {
         if (shellTabs.some((tab) => tab.id === leafId)) {
           visibleTerminals.add(leafId);
         }
       }
+    } else {
+      visibleTerminals.add(activeTab.id);
     }
   }
 
@@ -391,12 +384,8 @@ function App() {
             return { dir, a: current, b: { tabId: id } };
         }
       }
-      const memberOther =
-        current && containsLeaf(current, id)
-          ? (() => { const leaves = paneLeaves(current); return leaves.length === 2 ? leaves.find((l) => l !== id) ?? null : null; })()
-          : null;
       const partner =
-        memberOther ?? (activeRef.current !== id ? activeRef.current : null) ??
+        (activeRef.current !== id ? activeRef.current : null) ??
         shellTabs.find((tab) => tab.id !== id)?.id ?? null;
       if (!partner || partner === id) return current;
       switch (zone) {
@@ -407,7 +396,21 @@ function App() {
           return { dir, a: { tabId: partner }, b: { tabId: id } };
       }
     });
+    setActiveTabId(id);
   };
+
+  type ShellTab = { kind: 'terminal'; id: string; profile: string; connected: boolean } | { kind: 'local'; id: string; profile: string; connected: boolean };
+
+  const groupMembers: ShellTab[] | null =
+    split && 'dir' in split
+      ? paneLeaves(split)
+          .map((id) => shellTabs.find((t) => t.id === id))
+          .filter((t): t is ShellTab => Boolean(t && (t.kind === 'terminal' || t.kind === 'local')))
+      : null;
+
+  if (activeTabId && groupMembers && groupMembers.some((m) => m.id === activeTabId)) {
+    lastGroupMemberRef.current = activeTabId;
+  }
 
   const liveSessions = shellTabs.filter((tab) => tab.connected).length;
   const liveProfileNames = new Set(
@@ -421,6 +424,7 @@ function App() {
         key={tab.id}
         className="pane-slot"
         style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none' }}
+        onClick={() => { setActiveTabId(tab.id); focusTerminal(tab.id); }}
       >
         {split && containsLeaf(split, tab.id) ? (
           <div className="pane-head">
@@ -430,7 +434,7 @@ function App() {
               type="button"
               className="pane-close"
               aria-label={`Cerrar ${tab.profile}`}
-              onClick={() => closeTab(tab.id)}
+              onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
             >
               ✕
             </button>
@@ -537,11 +541,13 @@ function App() {
                 dropZoneRef.current = null;
               }}
               draggingId={draggingShell}
+              groupMembers={groupMembers}
+              lastGroupMemberId={lastGroupMemberRef.current}
             />
           )}
 
         <main
-          className="content"
+          className={`content ${split && 'dir' in split ? (split.dir === 'row' ? 'split-h' : 'split-v') : ''}`}
           onDragOver={(event) => {
             if (!draggingShell) return;
             event.preventDefault();
@@ -571,26 +577,46 @@ function App() {
             handleDropZone(zone);
           }}
         >
-          {split ? renderPane(split) : activeTab ? renderLeaf(activeTab) : null}
-
-          {shellTabs
-            .filter((tab) => !visibleTerminals.has(tab.id))
-            .map((tab) => (
-              <div key={tab.id} style={{ display: 'none' }}>
-                {tab.kind === 'terminal' || tab.kind === 'local' ? (
-                  <TerminalTab
-                    sessionId={tab.id}
-                    connected={tab.connected}
-                    visible={false}
-                    prefs={prefs}
-                    transport={tab.kind === 'local' ? 'local' : 'ssh'}
-                    onClose={closeTab}
-                    onReconnect={reconnect}
-                    onCwd={rememberCwd}
-                  />
+          {shellTabs.map((tab) => {
+            if (tab.kind !== 'terminal' && tab.kind !== 'local') return null;
+            const leafIdx = split ? paneLeaves(split).indexOf(tab.id) : -1;
+            const order = leafIdx === 0 ? 0 : leafIdx === 1 ? 2 : undefined;
+            const isActive = activeTab?.id === tab.id;
+            const visible = visibleTerminals.has(tab.id);
+            return (
+              <div
+                key={tab.id}
+                className="pane-slot"
+                style={{ display: visible ? undefined : 'none', order }}
+                onClick={() => { setActiveTabId(tab.id); focusTerminal(tab.id); }}
+              >
+                {split && containsLeaf(split, tab.id) ? (
+                  <div className="pane-head">
+                    <span className={`tab-dot ${tab.connected ? 'live' : 'dead'}`} aria-hidden="true" />
+                    <span className="pane-title">{tab.profile}</span>
+                    <button
+                      type="button"
+                      className="pane-close"
+                      aria-label={`Cerrar ${tab.profile}`}
+                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 ) : null}
+                <TerminalTab
+                  sessionId={tab.id}
+                  connected={tab.connected}
+                  visible={visible && isActive}
+                  prefs={prefs}
+                  transport={tab.kind === 'local' ? 'local' : 'ssh'}
+                  onClose={closeTab}
+                  onReconnect={reconnect}
+                  onCwd={rememberCwd}
+                />
               </div>
-            ))}
+            );
+          })}
 
           {activeTab?.kind === 'sftp' && (
             <SftpPanel profile={activeTab.profile} />

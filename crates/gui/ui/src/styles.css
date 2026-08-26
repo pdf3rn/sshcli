@@ -1410,12 +1410,14 @@ button.explorer-row:focus-visible:not(:disabled) {
 .split-v {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   min-width: 0;
 }
 
 .split-h {
   display: flex;
+  flex: 1;
   min-height: 0;
   min-width: 0;
 }
@@ -1942,6 +1944,18 @@ button.explorer-row:focus-visible:not(:disabled) {
 .tab:hover .tab-close,
 .tab-active .tab-close {
   opacity: 1;
+}
+
+.tab-group {
+  border-left: 2px solid var(--accent);
+  padding-left: calc(var(--space-3) - 2px);
+}
+
+.tab-group-glyph {
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.85;
 }
 
 .tab-close:hover {
