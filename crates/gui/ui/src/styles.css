@@ -1407,17 +1407,35 @@ button.explorer-row:focus-visible:not(:disabled) {
   display: flex;
 }
 
-.pane-slot + .pane-slot {
-  border-left: 1px solid var(--border);
-}
-
-.content.split-v {
+.split-v {
+  display: flex;
   flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
 
-.content.split-v .pane-slot + .pane-slot {
-  border-left: none;
-  border-top: 1px solid var(--border);
+.split-h {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
+.split-h .pane-slot,
+.split-v .pane-slot {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  position: relative;
+}
+
+.split-h,
+.split-v {
+  gap: var(--space-2);
 }
 
 /* Overlay de zonas al arrastrar una pestaña de terminal */
@@ -2071,24 +2089,47 @@ button.explorer-row:focus-visible:not(:disabled) {
   background: var(--active);
 }
 
-/* Etiqueta de perfil solo en vista dividida */
-.content.split-h .pane-slot::after,
-.content.split-v .pane-slot::after {
-  content: attr(data-profile);
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-3);
-  z-index: 2;
-  pointer-events: none;
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pane-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--font-xs);
   font-weight: 700;
   letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--muted);
-  background: color-mix(in srgb, var(--surface-highest) 85%, transparent);
-  border: 1px solid var(--border-subtle);
+}
+
+.pane-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 4px;
   border-radius: var(--radius-sm);
-  padding: 1px var(--space-2);
+  transition: opacity var(--transition), color var(--transition);
+}
+
+.pane-close:hover {
+  opacity: 1;
+  color: var(--danger);
 }
 
 .detail-actions {

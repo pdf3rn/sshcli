@@ -29,8 +29,28 @@ function App() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  type SplitView = { firstId: string; secondId: string; dir: 'row' | 'col' };
-  const [split, setSplit] = useState<SplitView | null>(null);
+  type PaneNode = { tabId: string } | { dir: 'row' | 'col'; a: PaneNode; b: PaneNode };
+  const [split, setSplit] = useState<PaneNode | null>(null);
+
+  const paneLeaves = (node: PaneNode): string[] =>
+    'tabId' in node ? [node.tabId] : [...paneLeaves(node.a), ...paneLeaves(node.b)];
+
+  const containsLeaf = (node: PaneNode, id: string): boolean =>
+    'tabId' in node ? node.tabId === id : containsLeaf(node.a, id) || containsLeaf(node.b, id);
+
+  const replaceLeafId = (node: PaneNode, oldId: string, newId: string): PaneNode =>
+    'tabId' in node
+      ? node.tabId === oldId ? { tabId: newId } : node
+      : { dir: node.dir, a: replaceLeafId(node.a, oldId, newId), b: replaceLeafId(node.b, oldId, newId) };
+
+  const removeLeaf = (node: PaneNode, id: string): PaneNode | null => {
+    if ('tabId' in node) return node.tabId === id ? null : node;
+    const a = removeLeaf(node.a, id);
+    const b = removeLeaf(node.b, id);
+    if (!a) return b;
+    if (!b) return a;
+    return { dir: node.dir, a, b };
+  };
   const [draggingShell, setDraggingShell] = useState<string | null>(null);
   const [dropZone, setDropZone] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -192,7 +212,7 @@ function App() {
     const next = current.filter((item) => item.id !== id);
     setTabs(next);
     setSplit((value) =>
-      value && (value.firstId === id || value.secondId === id) ? null : value,
+      value ? removeLeaf(value, id) : null,
     );
     setActiveTabId((active) => {
       if (active !== id) return active;
@@ -222,13 +242,7 @@ function App() {
           );
           setActiveTabId(info.id);
           setSplit((value) =>
-            !value
-              ? value
-              : {
-                  ...value,
-                  firstId: value.firstId === sessionId ? info.id : value.firstId,
-                  secondId: value.secondId === sessionId ? info.id : value.secondId,
-                },
+            value ? replaceLeafId(value, sessionId, info.id) : null,
           );
         } catch (reason) {
           setError(String(reason));
@@ -253,11 +267,7 @@ function App() {
         setSplit((value) =>
           !value
             ? value
-            : {
-                ...value,
-                firstId: value.firstId === sessionId ? id : value.firstId,
-                secondId: value.secondId === sessionId ? id : value.secondId,
-              },
+            : replaceLeafId(value, sessionId, id),
         );
       } catch (reason) {
         setError(String(reason));
@@ -324,17 +334,25 @@ function App() {
   );
 
   const splitPartner =
-    split && (split.firstId === activeTab?.id || split.secondId === activeTab?.id)
-      ? split.firstId === activeTab?.id
-        ? split.secondId
-        : split.firstId
+    split && activeTab
+      ? (() => {
+          const leaves = paneLeaves(split);
+          const idx = leaves.indexOf(activeTab.id);
+          if (idx === -1) return null;
+          const otherIdx = idx === 0 ? 1 : 0;
+          return leaves[otherIdx] ?? null;
+        })()
       : null;
 
   const visibleTerminals = new Set<string>();
   if (activeTab?.kind === 'terminal' || activeTab?.kind === 'local') {
     visibleTerminals.add(activeTab.id);
-    if (splitPartner && shellTabs.some((tab) => tab.id === splitPartner)) {
-      visibleTerminals.add(splitPartner);
+    if (split) {
+      for (const leafId of paneLeaves(split)) {
+        if (shellTabs.some((tab) => tab.id === leafId)) {
+          visibleTerminals.add(leafId);
+        }
+      }
     }
   }
 
@@ -350,7 +368,7 @@ function App() {
     }
     if (activeTabId) {
       const candidate = shellTabs.find((tab) => tab.id !== activeTabId);
-      if (candidate) setSplit({ firstId: activeTabId, secondId: candidate.id, dir: 'row' });
+      if (candidate) setSplit({ dir: 'row', a: { tabId: activeTabId }, b: { tabId: candidate.id } });
     }
   };
 
@@ -364,20 +382,18 @@ function App() {
     if (!id || !zone || zone === 'center') return;
     const dir: 'row' | 'col' = zone === 'left' || zone === 'right' ? 'row' : 'col';
     setSplit((current) => {
-      if (current && current.firstId !== id && current.secondId !== id) {
+      if (current && !containsLeaf(current, id)) {
         switch (zone) {
           case 'left':
           case 'up':
-            return { firstId: id, secondId: current.secondId, dir };
+            return { dir, a: { tabId: id }, b: current };
           default:
-            return { firstId: current.firstId, secondId: id, dir };
+            return { dir, a: current, b: { tabId: id } };
         }
       }
       const memberOther =
-        current && (current.firstId === id || current.secondId === id)
-          ? current.firstId === id
-            ? current.secondId
-            : current.firstId
+        current && containsLeaf(current, id)
+          ? (() => { const leaves = paneLeaves(current); return leaves.length === 2 ? leaves.find((l) => l !== id) ?? null : null; })()
           : null;
       const partner =
         memberOther ?? (activeRef.current !== id ? activeRef.current : null) ??
@@ -386,9 +402,9 @@ function App() {
       switch (zone) {
         case 'left':
         case 'up':
-          return { firstId: id, secondId: partner, dir };
+          return { dir, a: { tabId: id }, b: { tabId: partner } };
         default:
-          return { firstId: partner, secondId: id, dir };
+          return { dir, a: { tabId: partner }, b: { tabId: id } };
       }
     });
   };
@@ -397,6 +413,55 @@ function App() {
   const liveProfileNames = new Set(
     shellTabs.filter((tab) => tab.connected).map((tab) => tab.profile),
   );
+
+  const renderLeaf = (tab: Tab) => {
+    if (tab.kind !== 'terminal' && tab.kind !== 'local') return null;
+    return (
+      <div
+        key={tab.id}
+        className="pane-slot"
+        style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none' }}
+      >
+        {split && containsLeaf(split, tab.id) ? (
+          <div className="pane-head">
+            <span className={`tab-dot ${tab.connected ? 'live' : 'dead'}`} aria-hidden="true" />
+            <span className="pane-title">{tab.profile}</span>
+            <button
+              type="button"
+              className="pane-close"
+              aria-label={`Cerrar ${tab.profile}`}
+              onClick={() => closeTab(tab.id)}
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
+        <TerminalTab
+          sessionId={tab.id}
+          connected={tab.connected}
+          visible={visibleTerminals.has(tab.id)}
+          prefs={prefs}
+          transport={tab.kind === 'local' ? 'local' : 'ssh'}
+          onClose={closeTab}
+          onReconnect={reconnect}
+          onCwd={rememberCwd}
+        />
+      </div>
+    );
+  };
+
+  const renderPane = (node: PaneNode): React.ReactNode => {
+    if ('tabId' in node) {
+      const tab = shellTabs.find((t) => t.id === node.tabId);
+      return tab ? renderLeaf(tab) : null;
+    }
+    return (
+      <div className={`split-${node.dir === 'row' ? 'h' : 'v'}`} key={`split-${node.a}-${node.b}`}>
+        {renderPane(node.a)}
+        {renderPane(node.b)}
+      </div>
+    );
+  };
 
   return (
     <div className="app">
@@ -476,7 +541,7 @@ function App() {
           )}
 
         <main
-          className={`content ${split ? (split.dir === 'row' ? 'split-h' : 'split-v') : ''}`}
+          className="content"
           onDragOver={(event) => {
             if (!draggingShell) return;
             event.preventDefault();
@@ -506,33 +571,26 @@ function App() {
             handleDropZone(zone);
           }}
         >
-          {shellTabs.map((tab) => {
-            const order =
-              split?.firstId === tab.id
-                ? 0
-                : split?.secondId === tab.id
-                  ? 2
-                  : undefined;
-            return (
-            <div
-              key={tab.id}
-              className="pane-slot"
-              data-profile={tab.profile}
-              style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none', order }}
-            >
-              <TerminalTab
-                sessionId={tab.id}
-                connected={tab.connected}
-                visible={visibleTerminals.has(tab.id)}
-                prefs={prefs}
-                transport={tab.kind === 'local' ? 'local' : 'ssh'}
-                onClose={closeTab}
-                onReconnect={reconnect}
-                onCwd={rememberCwd}
-              />
-            </div>
-            );
-          })}
+          {split ? renderPane(split) : activeTab ? renderLeaf(activeTab) : null}
+
+          {shellTabs
+            .filter((tab) => !visibleTerminals.has(tab.id))
+            .map((tab) => (
+              <div key={tab.id} style={{ display: 'none' }}>
+                {tab.kind === 'terminal' || tab.kind === 'local' ? (
+                  <TerminalTab
+                    sessionId={tab.id}
+                    connected={tab.connected}
+                    visible={false}
+                    prefs={prefs}
+                    transport={tab.kind === 'local' ? 'local' : 'ssh'}
+                    onClose={closeTab}
+                    onReconnect={reconnect}
+                    onCwd={rememberCwd}
+                  />
+                ) : null}
+              </div>
+            ))}
 
           {activeTab?.kind === 'sftp' && (
             <SftpPanel profile={activeTab.profile} />
