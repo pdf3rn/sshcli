@@ -388,12 +388,13 @@ function App() {
         (activeRef.current !== id ? activeRef.current : null) ??
         shellTabs.find((tab) => tab.id !== id)?.id ?? null;
       if (!partner || partner === id) return current;
+      const currentDir = current && 'dir' in current ? current.dir : dir;
       switch (zone) {
         case 'left':
         case 'up':
-          return { dir, a: { tabId: id }, b: { tabId: partner } };
+          return { dir: currentDir, a: { tabId: id }, b: { tabId: partner } };
         default:
-          return { dir, a: { tabId: partner }, b: { tabId: id } };
+          return { dir: currentDir, a: { tabId: partner }, b: { tabId: id } };
       }
     });
     setActiveTabId(id);
