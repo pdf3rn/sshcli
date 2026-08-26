@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
@@ -29,8 +29,9 @@ function App() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  type PaneNode = { tabId: string } | { dir: 'row' | 'col'; a: PaneNode; b: PaneNode };
+  type PaneNode = { tabId: string } | { id: string; dir: 'row' | 'col'; a: PaneNode; b: PaneNode; ratio: number };
   const [split, setSplit] = useState<PaneNode | null>(null);
+  const paneIdRef = useRef(0);
 
   const paneLeaves = (node: PaneNode): string[] =>
     'tabId' in node ? [node.tabId] : [...paneLeaves(node.a), ...paneLeaves(node.b)];
@@ -41,7 +42,7 @@ function App() {
   const replaceLeafId = (node: PaneNode, oldId: string, newId: string): PaneNode =>
     'tabId' in node
       ? node.tabId === oldId ? { tabId: newId } : node
-      : { dir: node.dir, a: replaceLeafId(node.a, oldId, newId), b: replaceLeafId(node.b, oldId, newId) };
+      : { ...node, a: replaceLeafId(node.a, oldId, newId), b: replaceLeafId(node.b, oldId, newId) };
 
   const removeLeaf = (node: PaneNode, id: string): PaneNode | null => {
     if ('tabId' in node) return node.tabId === id ? null : node;
@@ -49,7 +50,7 @@ function App() {
     const b = removeLeaf(node.b, id);
     if (!a) return b;
     if (!b) return a;
-    return { dir: node.dir, a, b };
+    return { ...node, a, b };
   };
   const [draggingShell, setDraggingShell] = useState<string | null>(null);
   const [dropZone, setDropZone] = useState<string | null>(null);
@@ -361,11 +362,45 @@ function App() {
     }
     if (activeTabId) {
       const candidate = shellTabs.find((tab) => tab.id !== activeTabId);
-      if (candidate) setSplit({ dir: 'row', a: { tabId: activeTabId }, b: { tabId: candidate.id } });
+      if (candidate) setSplit({ id: `s${++paneIdRef.current}`, dir: 'row', a: { tabId: activeTabId }, b: { tabId: candidate.id }, ratio: 0.5 });
     }
   };
 
   const dropZoneRef = useRef<string | null>(null);
+
+  type ResizeState = { nodeId: string; dir: 'row' | 'col'; startX: number; startY: number; startRatio: number };
+  const resizeRef = useRef<ResizeState | null>(null);
+  const [resizing, setResizing] = useState(false);
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const onMove = (e: PointerEvent) => {
+      const r = resizeRef.current;
+      if (!r || !mainRef.current) return;
+      const rect = mainRef.current.getBoundingClientRect();
+      const isRow = r.dir === 'row';
+      const delta = isRow ? e.clientX - r.startX : e.clientY - r.startY;
+      const span = isRow ? rect.width : rect.height;
+      const newRatio = Math.min(0.85, Math.max(0.15, r.startRatio + delta / span));
+      setSplit((current) => {
+        if (!current || 'tabId' in current) return current;
+        const update = (n: PaneNode): PaneNode =>
+          'tabId' in n ? n : n.id === r.nodeId ? { ...n, ratio: newRatio } : { ...n, a: update(n.a), b: update(n.b) };
+        return update(current);
+      });
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+      setResizing(false);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+  }, [resizing]);
 
   const handleDropZone = (zone: string | null) => {
     const id = draggingShell;
@@ -379,9 +414,9 @@ function App() {
         switch (zone) {
           case 'left':
           case 'up':
-            return { dir, a: { tabId: id }, b: current };
+            return { id: `s${++paneIdRef.current}`, dir, a: { tabId: id }, b: current, ratio: 0.5 };
           default:
-            return { dir, a: current, b: { tabId: id } };
+            return { id: `s${++paneIdRef.current}`, dir, a: current, b: { tabId: id }, ratio: 0.5 };
         }
       }
       const partner =
@@ -389,12 +424,13 @@ function App() {
         shellTabs.find((tab) => tab.id !== id)?.id ?? null;
       if (!partner || partner === id) return current;
       const currentDir = current && 'dir' in current ? current.dir : dir;
+      const currentRatio = current && 'ratio' in current ? current.ratio : 0.5;
       switch (zone) {
         case 'left':
         case 'up':
-          return { dir: currentDir, a: { tabId: id }, b: { tabId: partner } };
+          return { id: `s${++paneIdRef.current}`, dir: currentDir, a: { tabId: id }, b: { tabId: partner }, ratio: currentRatio };
         default:
-          return { dir: currentDir, a: { tabId: partner }, b: { tabId: id } };
+          return { id: `s${++paneIdRef.current}`, dir: currentDir, a: { tabId: partner }, b: { tabId: id }, ratio: currentRatio };
       }
     });
     setActiveTabId(id);
@@ -418,53 +454,39 @@ function App() {
     shellTabs.filter((tab) => tab.connected).map((tab) => tab.profile),
   );
 
-  const renderLeaf = (tab: Tab) => {
-    if (tab.kind !== 'terminal' && tab.kind !== 'local') return null;
-    return (
-      <div
-        key={tab.id}
-        className="pane-slot"
-        style={{ display: visibleTerminals.has(tab.id) ? undefined : 'none' }}
-        onClick={() => { setActiveTabId(tab.id); focusTerminal(tab.id); }}
-      >
-        {split && containsLeaf(split, tab.id) ? (
-          <div className="pane-head">
-            <span className={`tab-dot ${tab.connected ? 'live' : 'dead'}`} aria-hidden="true" />
-            <span className="pane-title">{tab.profile}</span>
-            <button
-              type="button"
-              className="pane-close"
-              aria-label={`Cerrar ${tab.profile}`}
-              onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-            >
-              ✕
-            </button>
-          </div>
-        ) : null}
-        <TerminalTab
-          sessionId={tab.id}
-          connected={tab.connected}
-          visible={visibleTerminals.has(tab.id)}
-          prefs={prefs}
-          transport={tab.kind === 'local' ? 'local' : 'ssh'}
-          onClose={closeTab}
-          onReconnect={reconnect}
-          onCwd={rememberCwd}
-        />
-      </div>
-    );
+  type Rect = { left: number; top: number; width: number; height: number };
+  const calcRects = (node: PaneNode, left: number, top: number, w: number, h: number): Map<string, Rect> => {
+    if ('tabId' in node) return new Map([[node.tabId, { left, top, width: w, height: h }]]);
+    const r = node.ratio;
+    if (node.dir === 'row') return new Map([...calcRects(node.a, left, top, w * r, h), ...calcRects(node.b, left + w * r, top, w * (1 - r), h)]);
+    return new Map([...calcRects(node.a, left, top, w, h * r), ...calcRects(node.b, left, top + h * r, w, h * (1 - r))]);
   };
 
-  const renderPane = (node: PaneNode): React.ReactNode => {
-    if ('tabId' in node) {
-      const tab = shellTabs.find((t) => t.id === node.tabId);
-      return tab ? renderLeaf(tab) : null;
-    }
+  const splitVisible = Boolean(split) && visibleTerminals.size > 0;
+  const leafRects = splitVisible ? calcRects(split!, 0, 0, 1, 1) : new Map<string, Rect>();
+
+  const renderDividers = (node: PaneNode): React.ReactNode => {
+    if ('tabId' in node) return null;
+    const r = node.ratio;
+    const isRow = node.dir === 'row';
+    const style: React.CSSProperties = isRow
+      ? { left: `${r * 100}%`, top: 0, width: 7, height: '100%', cursor: 'col-resize' }
+      : { top: `${r * 100}%`, left: 0, height: 7, width: '100%', cursor: 'row-resize' };
     return (
-      <div className={`split-${node.dir === 'row' ? 'h' : 'v'}`} key={`split-${node.a}-${node.b}`}>
-        {renderPane(node.a)}
-        {renderPane(node.b)}
-      </div>
+      <React.Fragment key={`div-${node.id}`}>
+        <div
+          className="split-divider"
+          style={style}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            resizeRef.current = { nodeId: node.id, dir: node.dir, startX: e.clientX, startY: e.clientY, startRatio: node.ratio };
+            setResizing(true);
+          }}
+        />
+        {renderDividers(node.a)}
+        {renderDividers(node.b)}
+      </React.Fragment>
     );
   };
 
@@ -548,7 +570,9 @@ function App() {
           )}
 
         <main
-          className={`content ${split && 'dir' in split ? (split.dir === 'row' ? 'split-h' : 'split-v') : ''}`}
+          ref={mainRef}
+          className="content"
+          style={{ position: 'relative' }}
           onDragOver={(event) => {
             if (!draggingShell) return;
             event.preventDefault();
@@ -580,15 +604,26 @@ function App() {
         >
           {shellTabs.map((tab) => {
             if (tab.kind !== 'terminal' && tab.kind !== 'local') return null;
-            const leafIdx = split ? paneLeaves(split).indexOf(tab.id) : -1;
-            const order = leafIdx === 0 ? 0 : leafIdx === 1 ? 2 : undefined;
             const isActive = activeTab?.id === tab.id;
             const visible = visibleTerminals.has(tab.id);
+            const rect = leafRects.get(tab.id);
+            const inSplit = Boolean(rect);
             return (
               <div
                 key={tab.id}
                 className="pane-slot"
-                style={{ display: visible ? undefined : 'none', order }}
+                style={{
+                  display: visible ? undefined : 'none',
+                  ...(inSplit
+                    ? {
+                        position: 'absolute' as const,
+                        left: `${rect!.left * 100}%`,
+                        top: `${rect!.top * 100}%`,
+                        width: `${rect!.width * 100}%`,
+                        height: `${rect!.height * 100}%`,
+                      }
+                    : {}),
+                }}
                 onClick={() => { setActiveTabId(tab.id); focusTerminal(tab.id); }}
               >
                 {split && containsLeaf(split, tab.id) ? (
@@ -608,7 +643,7 @@ function App() {
                 <TerminalTab
                   sessionId={tab.id}
                   connected={tab.connected}
-                  visible={visible && isActive}
+                  visible={visible}
                   prefs={prefs}
                   transport={tab.kind === 'local' ? 'local' : 'ssh'}
                   onClose={closeTab}
@@ -618,6 +653,8 @@ function App() {
               </div>
             );
           })}
+
+          {split && splitVisible && renderDividers(split)}
 
           {activeTab?.kind === 'sftp' && (
             <SftpPanel profile={activeTab.profile} />
