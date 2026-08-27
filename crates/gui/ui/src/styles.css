@@ -1750,8 +1750,8 @@ button.explorer-row:focus-visible:not(:disabled) {
 .tabbar {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
+  gap: 6px;
+  padding: 6px var(--space-2);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   overflow-x: auto;
@@ -1761,16 +1761,17 @@ button.explorer-row:focus-visible:not(:disabled) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   margin-left: var(--space-1);
   flex-shrink: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   color: var(--muted);
   cursor: pointer;
   transition:
+    border-color var(--transition),
     color var(--transition),
     background var(--transition);
 }
@@ -1778,6 +1779,7 @@ button.explorer-row:focus-visible:not(:disabled) {
 .tab-add:hover {
   color: var(--accent);
   background: var(--active);
+  border-color: var(--accent);
 }
 
 .tab.dragging {
@@ -1785,7 +1787,7 @@ button.explorer-row:focus-visible:not(:disabled) {
 }
 
 .tab.drop-target {
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: 0 0 0 2px rgba(86, 253, 147, 0.38);
 }
 
 .modal-new-connection {
@@ -1874,13 +1876,12 @@ button.explorer-row:focus-visible:not(:disabled) {
 .tab {
   display: flex;
   align-items: center;
-  gap: 7px;
-  background: var(--surface-alt);
+  gap: 8px;
+  background: rgba(27, 32, 39, 0.88);
   border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-radius: 10px;
   color: var(--muted);
-  padding: 5px var(--space-2) 5px var(--space-3);
+  padding: 6px 10px 6px 12px;
   cursor: pointer;
   font: inherit;
   font-size: var(--font-sm);
@@ -1888,19 +1889,28 @@ button.explorer-row:focus-visible:not(:disabled) {
   -webkit-user-select: none;
   white-space: nowrap;
   user-select: none;
-  transition: border-color var(--transition), background var(--transition),
-    color var(--transition);
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition);
 }
 
 .tab:hover {
   border-color: var(--accent);
+  background: var(--surface-high);
+  color: var(--text);
 }
 
 .tab-active {
-  background: var(--active);
+  background: rgba(46, 224, 122, 0.18);
   border-color: var(--accent);
   color: var(--text);
-  box-shadow: inset 0 2px 0 0 var(--accent);
+  box-shadow:
+    inset 0 0 0 1px rgba(86, 253, 147, 0.3),
+    0 0 0 1px rgba(86, 253, 147, 0.16),
+    0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
 .tab-label {
@@ -1917,9 +1927,9 @@ button.explorer-row:focus-visible:not(:disabled) {
   cursor: pointer;
   font-size: 11px;
   line-height: 1;
-  padding: 2px;
-  border-radius: var(--radius-sm);
-  transition: opacity var(--transition), color var(--transition);
+  padding: 3px;
+  border-radius: 999px;
+  transition: opacity var(--transition), color var(--transition), background var(--transition);
 }
 
 .tab:hover .tab-close,
@@ -1928,8 +1938,9 @@ button.explorer-row:focus-visible:not(:disabled) {
 }
 
 .tab-group {
-  border-left: 2px solid var(--accent);
-  padding-left: calc(var(--space-3) - 2px);
+  background: rgba(46, 224, 122, 0.11);
+  border-color: rgba(86, 253, 147, 0.48);
+  padding-left: 10px;
 }
 
 .tab-group-glyph {
@@ -1941,6 +1952,7 @@ button.explorer-row:focus-visible:not(:disabled) {
 
 .tab-close:hover {
   color: var(--danger);
+  background: var(--danger-bg);
 }
 
 .tab-dot {
