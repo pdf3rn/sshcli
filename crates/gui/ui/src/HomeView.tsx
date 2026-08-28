@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Profile } from './types';
 import { attemptAdhoc, isValidAdhocTarget } from './adhoc';
+import { ExportIcon, ImportIcon, PlusIcon, TerminalIcon } from './icons';
 
 type Props = {
   profiles: Profile[];
@@ -233,7 +234,7 @@ export default function HomeView({
         <div className="quick-actions">
           <button type="button" className="action-card" onClick={onCreate}>
             <span className="action-glyph" aria-hidden="true">
-              +
+              <PlusIcon size={18} />
             </span>
             Nueva conexión
           </button>
@@ -243,19 +244,19 @@ export default function HomeView({
             onClick={() => fileInputRef.current?.click()}
           >
             <span className="action-glyph" aria-hidden="true">
-              ⇪
+              <ImportIcon size={18} />
             </span>
             Importar config
           </button>
           <button type="button" className="action-card" onClick={() => void handleExport()}>
             <span className="action-glyph" aria-hidden="true">
-              ⇩
+              <ExportIcon size={18} />
             </span>
             Exportar config
           </button>
           <button type="button" className="action-card" onClick={onOpenLocal}>
             <span className="action-glyph" aria-hidden="true">
-              ▸_
+              <TerminalIcon size={18} />
             </span>
             Terminal local
           </button>

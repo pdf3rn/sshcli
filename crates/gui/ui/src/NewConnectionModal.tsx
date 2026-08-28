@@ -150,7 +150,6 @@ export default function NewConnectionModal({
               ))}
             </ul>
           )}
-          <p className="muted small">Enter conecta la primera coincidencia.</p>
         </form>
 
         <form

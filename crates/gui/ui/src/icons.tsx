@@ -1,67 +1,89 @@
+import {
+  Activity,
+  ArrowDownToLine,
+  ArrowRight,
+  ArrowUpFromLine,
+  ArrowUpDown,
+  Columns2,
+  File,
+  Folder,
+  Pencil,
+  Plus,
+  Route,
+  Star,
+  Terminal,
+  Trash2,
+  X,
+  type LucideProps,
+} from 'lucide-react';
+
 type IconProps = {
   size?: number;
+  filled?: boolean;
 };
 
-function base(size: number) {
-  return {
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.8,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    'aria-hidden': true as const,
-  };
-}
+const iconProps = (size: number): LucideProps => ({
+  size,
+  strokeWidth: 1.8,
+  'aria-hidden': true,
+});
 
 export function PlusIcon({ size = 16 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
+  return <Plus {...iconProps(size)} />;
 }
 
 export function ColumnsIcon({ size = 16 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M12 4v16" />
-    </svg>
-  );
+  return <Columns2 {...iconProps(size)} />;
 }
 
 export function XIcon({ size = 16 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  );
+  return <X {...iconProps(size)} />;
 }
 
 export function ActivityIcon({ size = 16 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-    </svg>
-  );
+  return <Activity {...iconProps(size)} />;
 }
 
 export function FolderIcon({ size = 14 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z" />
-    </svg>
-  );
+  return <Folder {...iconProps(size)} />;
 }
 
 export function FileIcon({ size = 14 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9l-6-6z" />
-      <path d="M13 3v6h6" />
-    </svg>
-  );
+  return <File {...iconProps(size)} />;
+}
+
+export function StarIcon({ size = 14, filled = false }: IconProps) {
+  return <Star {...iconProps(size)} fill={filled ? 'currentColor' : 'none'} />;
+}
+
+export function SftpIcon({ size = 14 }: IconProps) {
+  return <ArrowUpDown {...iconProps(size)} />;
+}
+
+export function TunnelsIcon({ size = 14 }: IconProps) {
+  return <Route {...iconProps(size)} />;
+}
+
+export function ConnectIcon({ size = 14 }: IconProps) {
+  return <ArrowRight {...iconProps(size)} />;
+}
+
+export function EditIcon({ size = 14 }: IconProps) {
+  return <Pencil {...iconProps(size)} />;
+}
+
+export function TrashIcon({ size = 14 }: IconProps) {
+  return <Trash2 {...iconProps(size)} />;
+}
+
+export function ImportIcon({ size = 16 }: IconProps) {
+  return <ArrowUpFromLine {...iconProps(size)} />;
+}
+
+export function ExportIcon({ size = 16 }: IconProps) {
+  return <ArrowDownToLine {...iconProps(size)} />;
+}
+
+export function TerminalIcon({ size = 16 }: IconProps) {
+  return <Terminal {...iconProps(size)} />;
 }

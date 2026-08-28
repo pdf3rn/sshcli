@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Profile } from './types';
+import { ConnectIcon, EditIcon, SftpIcon, StarIcon, TrashIcon, TunnelsIcon } from './icons';
 
 type Props = {
   profiles: Profile[];
@@ -220,7 +221,7 @@ export default function ConnectionsView({
                             }
                             onClick={() => onToggleFavorite(profile.name)}
                           >
-                            {profile.favorite ? '★' : '☆'}
+                            <StarIcon size={14} filled={profile.favorite} />
                           </button>
                           <button
                             type="button"
@@ -229,7 +230,7 @@ export default function ConnectionsView({
                             title="Abrir SFTP"
                             onClick={() => onOpenPanel('sftp', profile.name)}
                           >
-                            ⇅
+                            <SftpIcon size={14} />
                           </button>
                           <button
                             type="button"
@@ -238,7 +239,7 @@ export default function ConnectionsView({
                             title="Abrir túneles"
                             onClick={() => onOpenPanel('tunnels', profile.name)}
                           >
-                            ⇄
+                            <TunnelsIcon size={14} />
                           </button>
                           <button
                             type="button"
@@ -248,7 +249,7 @@ export default function ConnectionsView({
                             disabled={connecting}
                             onClick={() => onConnect(profile.name)}
                           >
-                            →
+                            <ConnectIcon size={14} />
                           </button>
                           <button
                             type="button"
@@ -257,7 +258,7 @@ export default function ConnectionsView({
                             title="Editar"
                             onClick={() => onEdit(profile)}
                           >
-                            ✎
+                            <EditIcon size={14} />
                           </button>
                           <button
                             type="button"
@@ -266,7 +267,7 @@ export default function ConnectionsView({
                             title="Borrar (doble clic para confirmar)"
                             onClick={() => onDelete(profile.name)}
                           >
-                            ✕
+                            <TrashIcon size={14} />
                           </button>
                         </div>
                       </td>
