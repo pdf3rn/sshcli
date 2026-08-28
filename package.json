@@ -16,6 +16,8 @@
     "@tauri-apps/api": "^2",
     "@xterm/addon-fit": "^0.10",
     "@xterm/xterm": "^5",
+    "dockview": "^8.2.0",
+    "dockview-react": "^8.2.0",
     "react": "^18",
     "react-dom": "^18"
   },
