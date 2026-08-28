@@ -5,6 +5,7 @@ import {
   ArrowUpFromLine,
   ArrowUpDown,
   Columns2,
+  EllipsisVertical,
   File,
   Folder,
   Pencil,
@@ -86,4 +87,8 @@ export function ExportIcon({ size = 16 }: IconProps) {
 
 export function TerminalIcon({ size = 16 }: IconProps) {
   return <Terminal {...iconProps(size)} />;
+}
+
+export function MoreVerticalIcon({ size = 16 }: IconProps) {
+  return <EllipsisVertical {...iconProps(size)} />;
 }

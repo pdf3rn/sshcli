@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Profile } from './types';
-import { ConnectIcon, EditIcon, SftpIcon, StarIcon, TrashIcon, TunnelsIcon } from './icons';
+import { ConnectIcon, EditIcon, MoreVerticalIcon, SftpIcon, StarIcon, TrashIcon, TunnelsIcon } from './icons';
 
 type Props = {
   profiles: Profile[];
@@ -50,6 +50,26 @@ export default function ConnectionsView({
 }: Props) {
   const [query, setQuery] = useState('');
   const [activeGroup, setActiveGroup] = useState<string>('__all__');
+  const [openMenu, setOpenMenu] = useState<{ name: string; x: number; y: number; alignUp: boolean } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement;
+      if (menuRef.current?.contains(target) || target.closest('[data-connection-menu-trigger]')) return;
+      setOpenMenu(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenMenu(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [openMenu]);
 
   const groups = useMemo(() => {
     const counts = new Map<string, number>();
@@ -98,6 +118,12 @@ export default function ConnectionsView({
       ? [{ id: '__ungrouped__', label: 'Sin grupo', count: profiles.filter((p) => !p.group).length }]
       : []),
   ];
+  const menuProfile = openMenu ? profiles.find((profile) => profile.name === openMenu.name) : null;
+
+  const closeMenuThen = (action: () => void) => {
+    setOpenMenu(null);
+    action();
+  };
 
   return (
     <section className="connections-view" aria-labelledby="connections-title">
@@ -206,7 +232,7 @@ export default function ConnectionsView({
                       </td>
                       <td className="cell-last">{formatLastUsed(profile.last_used)}</td>
                       <td className="col-actions">
-                        <div className="row-actions">
+                        <div className={`row-actions ${openMenu?.name === profile.name ? 'menu-open' : ''}`}>
                           <button
                             type="button"
                             className={`icon-btn small star-btn ${profile.favorite ? 'on' : ''}`}
@@ -225,24 +251,6 @@ export default function ConnectionsView({
                           </button>
                           <button
                             type="button"
-                            className="icon-btn small"
-                            aria-label={`Abrir SFTP de ${profile.name}`}
-                            title="Abrir SFTP"
-                            onClick={() => onOpenPanel('sftp', profile.name)}
-                          >
-                            <SftpIcon size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn small"
-                            aria-label={`Abrir túneles de ${profile.name}`}
-                            title="Abrir túneles"
-                            onClick={() => onOpenPanel('tunnels', profile.name)}
-                          >
-                            <TunnelsIcon size={14} />
-                          </button>
-                          <button
-                            type="button"
                             className="icon-btn small row-connect"
                             aria-label={`Conectar a ${profile.name}`}
                             title="Conectar"
@@ -254,20 +262,27 @@ export default function ConnectionsView({
                           <button
                             type="button"
                             className="icon-btn small"
-                            aria-label={`Editar ${profile.name}`}
-                            title="Editar"
-                            onClick={() => onEdit(profile)}
+                            data-connection-menu-trigger
+                            aria-haspopup="menu"
+                            aria-expanded={openMenu?.name === profile.name}
+                            aria-label={`Más acciones para ${profile.name}`}
+                            title="Más acciones"
+                            onClick={(event) => {
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              const menuHeight = 152;
+                              setOpenMenu((current) =>
+                                current?.name === profile.name
+                                  ? null
+                                  : {
+                                      name: profile.name,
+                                      x: rect.right,
+                                      y: rect.bottom + 6,
+                                      alignUp: window.innerHeight - rect.bottom < menuHeight,
+                                    },
+                              );
+                            }}
                           >
-                            <EditIcon size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn small"
-                            aria-label={`Borrar ${profile.name}`}
-                            title="Borrar (doble clic para confirmar)"
-                            onClick={() => onDelete(profile.name)}
-                          >
-                            <TrashIcon size={14} />
+                            <MoreVerticalIcon size={16} />
                           </button>
                         </div>
                       </td>
@@ -279,6 +294,34 @@ export default function ConnectionsView({
           )}
         </div>
       </div>
+      {menuProfile && openMenu && (
+        <div
+          ref={menuRef}
+          className="connection-action-menu"
+          role="menu"
+          style={{
+            left: openMenu.x,
+            top: openMenu.alignUp ? openMenu.y - 158 : openMenu.y,
+          }}
+        >
+          <button type="button" role="menuitem" onClick={() => closeMenuThen(() => onOpenPanel('sftp', menuProfile.name))}>
+            <SftpIcon size={14} />
+            Abrir SFTP
+          </button>
+          <button type="button" role="menuitem" onClick={() => closeMenuThen(() => onOpenPanel('tunnels', menuProfile.name))}>
+            <TunnelsIcon size={14} />
+            Abrir túneles
+          </button>
+          <button type="button" role="menuitem" onClick={() => closeMenuThen(() => onEdit(menuProfile))}>
+            <EditIcon size={14} />
+            Editar
+          </button>
+          <button type="button" role="menuitem" className="danger" onClick={() => closeMenuThen(() => onDelete(menuProfile.name))}>
+            <TrashIcon size={14} />
+            Borrar
+          </button>
+        </div>
+      )}
     </section>
   );
 }
