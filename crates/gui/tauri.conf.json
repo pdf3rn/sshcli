@@ -35,6 +35,6 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "Cliente SSH de escritorio",
-    "longDescription": "Cliente SSH multiplataforma con interfaz gráfica tipo Termius: sesiones, SFTP y túneles."
+    "longDescription": "Cliente SSH multiplataforma con sesiones, terminales locales, SFTP y túneles."
   }
 }

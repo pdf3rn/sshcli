@@ -3,7 +3,7 @@ name = "sshcli-gui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Termius-like desktop GUI for sshcli"
+description = "Cross-platform desktop GUI for sshcli"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
