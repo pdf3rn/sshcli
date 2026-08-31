@@ -413,6 +413,7 @@ function App() {
           liveProfiles={liveProfileNames}
           connecting={connecting}
           onConnectProfile={(name) => void connect(name)}
+          onOpenPanel={openPanel}
           onConnectAdhoc={connectAdhoc}
           onOpenLocal={() => void openLocalTab()}
           onClose={() => setNewConnModalOpen(false)}

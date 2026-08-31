@@ -145,12 +145,11 @@ export default function HomeView({
   return (
     <section className="home-view" aria-labelledby="home-title">
       <div className="home-hero">
-        <h2 id="home-title">Terminal Gateway</h2>
+        <h2 id="home-title">sshcli</h2>
         <p className="hero-prompt" aria-hidden="true">
           root@sshcli:~# await connections
         </p>
         <p className="hero-subtitle">
-          Tus conexiones SSH, SFTP y túneles en un único espacio de trabajo.
         </p>
         <form
           className="hero-connect"

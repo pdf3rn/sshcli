@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Profile } from './types';
 import { attemptAdhoc, isValidAdhocTarget } from './adhoc';
+import { SftpIcon, TunnelsIcon } from './icons';
 import { useDialog } from './use-dialog';
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
   liveProfiles: ReadonlySet<string>;
   connecting: boolean;
   onConnectProfile: (name: string) => void;
+  onOpenPanel: (kind: 'sftp' | 'tunnels', name: string) => void;
   onConnectAdhoc: (target: string, password?: string) => Promise<void>;
   onOpenLocal: () => void;
   onClose: () => void;
@@ -19,6 +21,7 @@ export default function NewConnectionModal({
   liveProfiles,
   connecting,
   onConnectProfile,
+  onOpenPanel,
   onConnectAdhoc,
   onOpenLocal,
   onClose,
@@ -29,7 +32,25 @@ export default function NewConnectionModal({
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detectedShell, setDetectedShell] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useDialog<HTMLDivElement>(onClose);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const closeMenu = (event: PointerEvent) => {
+      if (!contextMenuRef.current?.contains(event.target as Node)) setContextMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null);
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     invoke<{ detected: string }>('local_shell_detect')
@@ -133,6 +154,10 @@ export default function NewConnectionModal({
                     type="button"
                     className="modal-profile-row"
                     disabled={connecting}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setContextMenu({ name: profile.name, x: event.clientX, y: event.clientY });
+                    }}
                     onClick={() => connectProfile(profile.name)}
                   >
                     <span className="recent-name">
@@ -151,6 +176,42 @@ export default function NewConnectionModal({
             </ul>
           )}
         </form>
+
+        {contextMenu && (
+          <div
+            ref={contextMenuRef}
+            className="connection-action-menu modal-connection-action-menu"
+            role="menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const { name } = contextMenu;
+                setContextMenu(null);
+                onClose();
+                onOpenPanel('sftp', name);
+              }}
+            >
+              <SftpIcon size={14} />
+              Abrir SFTP
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const { name } = contextMenu;
+                setContextMenu(null);
+                onClose();
+                onOpenPanel('tunnels', name);
+              }}
+            >
+              <TunnelsIcon size={14} />
+              Abrir túneles
+            </button>
+          </div>
+        )}
 
         <form
           onSubmit={(event) => {

@@ -42,6 +42,21 @@ function fmtSize(bytes: number): string {
   return `${value.toFixed(1)} ${unit}`;
 }
 
+function parentLocalPath(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, '');
+  if (!trimmed) return path || '.';
+
+  const separatorIndex = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  if (separatorIndex < 0) return '.';
+  if (separatorIndex === 0) return trimmed[0];
+
+  const drive = trimmed.slice(0, separatorIndex);
+  if (separatorIndex === 2 && /^[A-Za-z]:$/.test(drive)) {
+    return `${drive}${trimmed[separatorIndex]}`;
+  }
+  return trimmed.slice(0, separatorIndex);
+}
+
 type RowProps = {
   entry: Entry;
   remote: boolean;
@@ -271,8 +286,7 @@ export default function SftpPanel({ profile }: Props) {
   };
 
   const goLocalUp = async () => {
-    const parent = localPath.split('/').filter(Boolean).slice(0, -1).join('/');
-    await refreshLocal(parent || '/');
+    await refreshLocal(parentLocalPath(localPath));
   };
 
   const run = async (fn: () => Promise<unknown>, okMessage: string) => {
