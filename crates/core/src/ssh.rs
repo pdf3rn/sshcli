@@ -251,6 +251,7 @@ async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<Cl
         inactivity_timeout: Some(Duration::from_secs(60 * 60)),
         keepalive_interval: Some(Duration::from_secs(30)),
         keepalive_max: 3,
+        nodelay: true,
         ..Default::default()
     };
     let address = (options.host.as_str(), options.port);
