@@ -276,11 +276,7 @@ async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<Cl
     };
 
     let authenticated = match options.authentication {
-        Authentication::Password(password) => {
-            session
-                .authenticate_password(options.username, password)
-                .await?
-        }
+        Authentication::Password(password) => authenticate_password(&mut session, options.username, password).await?,
         Authentication::PrivateKey(_) => {
             let key = key.ok_or_else(|| {
                 AppError::Profile("private-key authentication requires an identity file".into())
@@ -291,11 +287,47 @@ async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<Cl
                     russh::keys::PrivateKeyWithHashAlg::new(Arc::new(key), None),
                 )
                 .await?
+                .success()
         }
-        Authentication::None => session.authenticate_none(options.username).await?,
+        Authentication::None => session.authenticate_none(options.username).await?.success(),
     };
-    if !authenticated.success() {
+    if !authenticated {
         return Err(crate::error::AppError::AuthenticationFailed);
     }
     Ok(session)
+}
+
+async fn authenticate_password(
+    session: &mut client::Handle<ClientHandler>,
+    username: String,
+    password: String,
+) -> AppResult<bool> {
+    if session
+        .authenticate_password(username.clone(), password.clone())
+        .await?
+        .success()
+    {
+        return Ok(true);
+    }
+
+    let mut response = session
+        .authenticate_keyboard_interactive_start(username, None)
+        .await?;
+    for _ in 0..8 {
+        response = match response {
+            client::KeyboardInteractiveAuthResponse::Success => return Ok(true),
+            client::KeyboardInteractiveAuthResponse::Failure { .. } => return Ok(false),
+            client::KeyboardInteractiveAuthResponse::InfoRequest { prompts, .. } => {
+                if prompts.iter().any(|prompt| prompt.echo) {
+                    return Ok(false);
+                }
+                session
+                    .authenticate_keyboard_interactive_respond(
+                        prompts.into_iter().map(|_| password.clone()).collect(),
+                    )
+                    .await?
+            }
+        };
+    }
+    Ok(false)
 }

@@ -68,6 +68,7 @@ fn fetch_session(
 pub async fn sftp_connect(
     state: State<'_, SftpState>,
     profile_name: String,
+    password: Option<String>,
 ) -> Result<String, String> {
     let store = ProfileStore::new();
     let profile = store
@@ -77,11 +78,21 @@ pub async fn sftp_connect(
         .find(|profile| profile.name == profile_name)
         .ok_or_else(|| format!("profile not found: {profile_name}"))?;
 
+    let supplied_password = password.filter(|password| !password.is_empty());
     let secret = match &profile.authentication {
         sshcli_core::Authentication::None => None,
-        _ => credentials::get(&profile_name).ok(),
+        _ => match supplied_password {
+            Some(password) => Some(password),
+            None => credentials::get_optional(&profile_name).map_err(|error| error.to_string())?,
+        },
     };
-    let options = ssh::options_for_profile(&profile, secret).map_err(|error| error.to_string())?;
+    let options = match ssh::options_for_profile(&profile, secret) {
+        Ok(options) => options,
+        Err(_) if matches!(profile.authentication, sshcli_core::Authentication::Password) => {
+            return Err(crate::session::PASSWORD_REQUIRED.into())
+        }
+        Err(error) => return Err(error.to_string()),
+    };
     let session = ssh::open_sftp(options)
         .await
         .map_err(|error| error.to_string())?;

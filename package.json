@@ -15,6 +15,7 @@
     "@fontsource/space-grotesk": "^5.3.0",
     "@tauri-apps/api": "^2",
     "@xterm/addon-fit": "^0.10",
+    "@xterm/addon-search": "^0.16.0",
     "@xterm/xterm": "^5",
     "dockview": "^8.2.0",
     "dockview-react": "^8.2.0",

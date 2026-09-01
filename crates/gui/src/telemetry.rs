@@ -54,7 +54,7 @@ pub fn init_state() -> TelemetryState {
     Arc::new(TelemetryManager::default())
 }
 
-async fn connect_exec(profile_name: &str) -> Result<ssh::ExecSession, String> {
+async fn connect_exec(profile_name: &str, password: Option<String>) -> Result<ssh::ExecSession, String> {
     let store = ProfileStore::new();
     let profile = store
         .load()
@@ -65,9 +65,18 @@ async fn connect_exec(profile_name: &str) -> Result<ssh::ExecSession, String> {
 
     let secret = match &profile.authentication {
         Authentication::None => None,
-        _ => credentials::get(profile_name).ok(),
+        _ => match password.filter(|password| !password.is_empty()) {
+            Some(password) => Some(password),
+            None => credentials::get_optional(profile_name).map_err(|error| error.to_string())?,
+        },
     };
-    let options = ssh::options_for_profile(&profile, secret).map_err(|error| error.to_string())?;
+    let options = match ssh::options_for_profile(&profile, secret) {
+        Ok(options) => options,
+        Err(_) if matches!(profile.authentication, Authentication::Password) => {
+            return Err(crate::session::PASSWORD_REQUIRED.into())
+        }
+        Err(error) => return Err(error.to_string()),
+    };
     ssh::ExecSession::connect(options)
         .await
         .map_err(|error| error.to_string())
@@ -177,12 +186,13 @@ fn parse_sample(output: &str, state: &mut ConnState) -> Result<TelemetrySample, 
 async fn sample_once(
     state: &TelemetryState,
     profile_name: &str,
+    password: Option<String>,
 ) -> Result<TelemetrySample, String> {
     let mut conns = state.conns.lock().await;
     let healthy = matches!(conns.get(profile_name), Some(conn) if !conn.exec.is_closed());
     if !healthy {
         conns.remove(profile_name);
-        let mut conn = ConnState::new(connect_exec(profile_name).await?);
+        let mut conn = ConnState::new(connect_exec(profile_name, password).await?);
         let warmup = conn
             .exec
             .run(SAMPLE_COMMAND)
@@ -205,10 +215,12 @@ async fn sample_once(
 async fn sample_with_manager(
     state: &TelemetryState,
     profile_name: &str,
+    password: Option<String>,
 ) -> Result<TelemetrySample, String> {
-    match sample_once(state, profile_name).await {
+    match sample_once(state, profile_name, password.clone()).await {
         Ok(sample) => Ok(sample),
-        Err(_) => sample_once(state, profile_name)
+        Err(error) if error.contains(crate::session::PASSWORD_REQUIRED) => Err(error),
+        Err(_) => sample_once(state, profile_name, password)
             .await
             .map_err(|error| format!("telemetry unavailable: {error}")),
     }
@@ -218,8 +230,9 @@ async fn sample_with_manager(
 pub async fn telemetry_sample(
     state: State<'_, TelemetryState>,
     profile_name: String,
+    password: Option<String>,
 ) -> Result<TelemetrySample, String> {
-    sample_with_manager(&state, &profile_name).await
+    sample_with_manager(&state, &profile_name, password).await
 }
 
 #[tauri::command]

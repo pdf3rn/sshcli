@@ -26,7 +26,7 @@ pub struct Profile {
     pub favorite: bool,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum Authentication {
     None,
     Password,
@@ -93,6 +93,23 @@ impl ProfileStore {
         let removed = profiles.remove(index);
         self.save(&profiles)?;
         Ok(removed)
+    }
+
+    pub fn replace(&self, original_name: &str, profile: Profile) -> AppResult<Profile> {
+        let mut profiles = self.load()?;
+        let index = profiles
+            .iter()
+            .position(|saved| saved.name == original_name)
+            .ok_or_else(|| AppError::Profile(format!("profile not found: {original_name}")))?;
+        if profile.name != original_name && profiles.iter().any(|saved| saved.name == profile.name) {
+            return Err(AppError::Profile(format!(
+                "profile already exists: {}",
+                profile.name
+            )));
+        }
+        let previous = std::mem::replace(&mut profiles[index], profile);
+        self.save(&profiles)?;
+        Ok(previous)
     }
 
     pub fn touch_last_used(&self, name: &str) -> AppResult<()> {

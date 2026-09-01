@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import PromptDialog from './PromptDialog';
+import { PASSWORD_REQUIRED } from './adhoc';
 
 type TelemetrySample = {
   cpuPercent: number;
@@ -56,19 +58,35 @@ function Meter({
 export default function TelemetryPanel({ profile }: Props) {
   const [sample, setSample] = useState<TelemetrySample | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [password, setPassword] = useState<string | null>(null);
+  const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [savePassword, setSavePassword] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const tick = () => {
-      invoke<TelemetrySample>('telemetry_sample', { profileName: profile })
+      if (needsPassword) return;
+      invoke<TelemetrySample>('telemetry_sample', { profileName: profile, password })
         .then((next) => {
           if (!cancelled) {
             setSample(next);
             setError(null);
+            if (savePassword && password) {
+              setSavePassword(false);
+              void invoke('save_profile_secret', { name: profile, secret: password }).catch((reason) => {
+                if (!cancelled) setError(`Disponible, pero no se pudo guardar la contraseña: ${String(reason)}`);
+              });
+            }
           }
         })
         .catch((reason) => {
-          if (!cancelled) setError(String(reason));
+          if (!cancelled && String(reason).includes(PASSWORD_REQUIRED)) {
+            setNeedsPassword(true);
+            setPasswordPromptOpen(true);
+          } else if (!cancelled) {
+            setError(String(reason));
+          }
         });
     };
     tick();
@@ -80,7 +98,7 @@ export default function TelemetryPanel({ profile }: Props) {
         () => undefined,
       );
     };
-  }, [profile]);
+  }, [profile, password, needsPassword, savePassword]);
 
   return (
     <aside className="telemetry-panel" aria-label={`Telemetría de ${profile}`}>
@@ -125,6 +143,24 @@ export default function TelemetryPanel({ profile }: Props) {
         <p className="muted small" aria-live="polite">
           Muestreando…
         </p>
+      )}
+      {passwordPromptOpen && (
+        <PromptDialog
+          title={`Contraseña para ${profile}`}
+          description="No hay una contraseña guardada para este perfil. Se guardará si la telemetría funciona."
+          label="Contraseña"
+          inputType="password"
+          trimValue={false}
+          confirmLabel="Conectar"
+          requireValue
+          onConfirm={(value) => {
+            setPasswordPromptOpen(false);
+            setNeedsPassword(false);
+            setSavePassword(true);
+            setPassword(value);
+          }}
+          onCancel={() => setPasswordPromptOpen(false)}
+        />
       )}
     </aside>
   );

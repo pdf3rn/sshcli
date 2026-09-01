@@ -18,6 +18,7 @@ pub fn run() {
             commands::create_profile,
             commands::update_profile,
             commands::delete_profile,
+            commands::save_profile_secret,
             commands::toggle_favorite,
             commands::touch_last_used,
             commands::import_profiles,

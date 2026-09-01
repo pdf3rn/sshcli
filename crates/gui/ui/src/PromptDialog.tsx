@@ -6,6 +6,8 @@ type Props = {
   description?: string;
   label?: string;
   initialValue?: string;
+  inputType?: React.HTMLInputTypeAttribute;
+  trimValue?: boolean;
   confirmLabel?: string;
   danger?: boolean;
   requireValue?: boolean;
@@ -18,6 +20,8 @@ export default function PromptDialog({
   description,
   label,
   initialValue = '',
+  inputType = 'text',
+  trimValue = true,
   confirmLabel = 'Aceptar',
   danger = false,
   requireValue = false,
@@ -29,9 +33,9 @@ export default function PromptDialog({
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmed = value.trim();
-    if (requireValue && !trimmed) return;
-    onConfirm(trimmed);
+    const submitted = trimValue ? value.trim() : value;
+    if (requireValue && !submitted) return;
+    onConfirm(submitted);
   };
 
   return (
@@ -52,6 +56,7 @@ export default function PromptDialog({
               <span>{label}</span>
               <input
                 autoFocus
+                type={inputType}
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
                 required={requireValue}

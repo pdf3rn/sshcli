@@ -19,6 +19,8 @@ pub fn list_identity_keys() -> Result<Vec<String>, String> {
 
 #[derive(Deserialize)]
 pub struct ProfileInput {
+    #[serde(default)]
+    pub original_name: Option<String>,
     pub name: String,
     pub host: String,
     pub port: u16,
@@ -83,7 +85,7 @@ pub fn create_profile(input: ProfileInput) -> Result<(), String> {
     }
     let (profile, secret) = input.into_profile()?;
     if let Some(secret) = profile_secret(&profile, secret) {
-        credentials::set(&profile.name, &secret).map_err(|error| error.to_string())?;
+        credentials::set_verified(&profile.name, &secret).map_err(|error| error.to_string())?;
     }
     store.add(profile.clone()).map_err(|error| {
         let _ = credentials::delete(&profile.name);
@@ -94,23 +96,41 @@ pub fn create_profile(input: ProfileInput) -> Result<(), String> {
 #[tauri::command]
 pub fn update_profile(input: ProfileInput) -> Result<(), String> {
     let store = ProfileStore::new();
+    let original_name = input
+        .original_name
+        .clone()
+        .unwrap_or_else(|| input.name.clone());
     let previous = store
         .load()
-        .ok()
-        .and_then(|profiles| profiles.into_iter().find(|p| p.name == input.name));
-    let previous_last_used = previous.as_ref().and_then(|profile| profile.last_used);
-    let previous_favorite = previous.as_ref().map(|profile| profile.favorite);
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .find(|profile| profile.name == original_name)
+        .ok_or_else(|| format!("profile not found: {original_name}"))?;
     let (mut profile, secret) = input.into_profile()?;
-    profile.last_used = previous_last_used;
-    if let Some(favorite) = previous_favorite {
-        profile.favorite = favorite;
+    profile.last_used = previous.last_used;
+    profile.favorite = previous.favorite;
+
+    let replacement_secret = profile_secret(&profile, secret);
+    let preserve_secret = replacement_secret.is_none()
+        && previous.authentication == profile.authentication
+        && matches!(profile.authentication, Authentication::Password | Authentication::PrivateKey);
+    if let Some(secret) = replacement_secret.as_deref() {
+        credentials::set_verified(&profile.name, secret).map_err(|error| error.to_string())?;
+    } else if preserve_secret && original_name != profile.name {
+        if let Some(secret) = credentials::get_optional(&original_name).map_err(|error| error.to_string())? {
+            credentials::set_verified(&profile.name, &secret).map_err(|error| error.to_string())?;
+        }
     }
-    let _ = credentials::delete(&profile.name);
-    if let Some(secret) = profile_secret(&profile, secret) {
-        credentials::set(&profile.name, &secret).map_err(|error| error.to_string())?;
+
+    store
+        .replace(&original_name, profile.clone())
+        .map_err(|error| error.to_string())?;
+
+    if original_name != profile.name {
+        credentials::delete(&original_name).map_err(|error| error.to_string())?;
     }
-    if let Err(error) = store.remove(&profile.name).and_then(|_| store.add(profile)) {
-        return Err(error.to_string());
+    if !preserve_secret && replacement_secret.is_none() {
+        credentials::delete(&profile.name).map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -121,6 +141,22 @@ pub fn delete_profile(name: String) -> Result<(), String> {
     store.remove(&name).map_err(|error| error.to_string())?;
     let _ = credentials::delete(&name);
     Ok(())
+}
+
+#[tauri::command]
+pub fn save_profile_secret(name: String, secret: String) -> Result<(), String> {
+    if secret.is_empty() {
+        return Err("credential cannot be empty".into());
+    }
+    let exists = ProfileStore::new()
+        .load()
+        .map_err(|error| error.to_string())?
+        .iter()
+        .any(|profile| profile.name == name);
+    if !exists {
+        return Err(format!("profile not found: {name}"));
+    }
+    credentials::set_verified(&name, &secret).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

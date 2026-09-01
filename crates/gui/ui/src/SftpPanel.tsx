@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import PromptDialog from './PromptDialog';
+import { PASSWORD_REQUIRED } from './adhoc';
 import { FileIcon, FolderIcon } from './icons';
 
 const SKELETON_WIDTHS = ['85%', '70%', '92%', '60%', '78%', '88%'];
@@ -137,6 +138,8 @@ export default function SftpPanel({ profile }: Props) {
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [password, setPassword] = useState<string | null>(null);
+  const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
   const mounted = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -199,7 +202,12 @@ export default function SftpPanel({ profile }: Props) {
     mounted.current = true;
     (async () => {
       try {
-        const id = await invoke<string>('sftp_connect', { profileName: profile });
+        const id = await invoke<string>('sftp_connect', { profileName: profile, password });
+        if (password) {
+          await invoke('save_profile_secret', { name: profile, secret: password }).catch((reason) => {
+            if (mounted.current) setMessage(`Conectado, pero no se pudo guardar la contraseña: ${String(reason)}`);
+          });
+        }
         if (!mounted.current) {
           invoke('sftp_close', { id }).catch(() => undefined);
           return;
@@ -212,7 +220,11 @@ export default function SftpPanel({ profile }: Props) {
         ]);
         await Promise.all([refreshRemote(id, home), refreshLocal(localHome)]);
       } catch (reason) {
-        if (mounted.current) setMessage(String(reason));
+        if (mounted.current && String(reason).includes(PASSWORD_REQUIRED)) {
+          setPasswordPromptOpen(true);
+        } else if (mounted.current) {
+          setMessage(String(reason));
+        }
       }
     })();
     return () => {
@@ -222,7 +234,7 @@ export default function SftpPanel({ profile }: Props) {
         sessionIdRef.current = null;
       }
     };
-  }, [profile, refreshRemote, refreshLocal]);
+  }, [profile, password, refreshRemote, refreshLocal]);
 
   const base = (path: string) => path.replace(/\/$/, '');
 
@@ -563,6 +575,22 @@ export default function SftpPanel({ profile }: Props) {
             setDialog(null);
             removeRemote(entry);
           }}
+        />
+      )}
+      {passwordPromptOpen && (
+        <PromptDialog
+          title={`Contraseña para ${profile}`}
+          description="No hay una contraseña guardada para este perfil. Se guardará si la conexión funciona."
+          label="Contraseña"
+          inputType="password"
+          trimValue={false}
+          confirmLabel="Conectar"
+          requireValue
+          onConfirm={(value) => {
+            setPasswordPromptOpen(false);
+            setPassword(value);
+          }}
+          onCancel={() => setPasswordPromptOpen(false)}
         />
       )}
     </div>

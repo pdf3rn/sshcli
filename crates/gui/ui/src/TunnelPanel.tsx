@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import PromptDialog from './PromptDialog';
+import { PASSWORD_REQUIRED } from './adhoc';
 
 type Tunnel = { id: string; profile: string; local: string; target: string };
 type Props = { profile: string; onClose: () => void };
@@ -10,6 +12,7 @@ export default function TunnelPanel({ profile, onClose }: Props) {
   const [targetHost, setTargetHost] = useState('127.0.0.1');
   const [targetPort, setTargetPort] = useState('80');
   const [message, setMessage] = useState<string | null>(null);
+  const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
 
   const refresh = useCallback(() => {
     invoke<Tunnel[]>('tunnel_list')
@@ -23,20 +26,29 @@ export default function TunnelPanel({ profile, onClose }: Props) {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  const start = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const start = async (password?: string) => {
     try {
       await invoke('tunnel_start', {
         profileName: profile,
+        password: password ?? null,
         bindHost: '127.0.0.1',
         bindPort: Number(bindPort),
         targetHost,
         targetPort: Number(targetPort),
       });
       setMessage('Túnel iniciado');
+      if (password) {
+        await invoke('save_profile_secret', { name: profile, secret: password }).catch((reason) => {
+          setMessage(`Túnel iniciado, pero no se pudo guardar la contraseña: ${String(reason)}`);
+        });
+      }
       refresh();
     } catch (reason) {
-      setMessage(String(reason));
+      if (!password && String(reason).includes(PASSWORD_REQUIRED)) {
+        setPasswordPromptOpen(true);
+      } else {
+        setMessage(String(reason));
+      }
     }
   };
 
@@ -59,7 +71,10 @@ export default function TunnelPanel({ profile, onClose }: Props) {
         </button>
       </div>
 
-      <form className="tunnel-form" onSubmit={start}>
+      <form className="tunnel-form" onSubmit={(event) => {
+        event.preventDefault();
+        void start();
+      }}>
         <label className="field">
           <span>Puerto local</span>
           <input
@@ -114,6 +129,22 @@ export default function TunnelPanel({ profile, onClose }: Props) {
           </div>
         ))}
       </div>
+      {passwordPromptOpen && (
+        <PromptDialog
+          title={`Contraseña para ${profile}`}
+          description="No hay una contraseña guardada para este perfil. Se guardará si el túnel inicia."
+          label="Contraseña"
+          inputType="password"
+          trimValue={false}
+          confirmLabel="Iniciar"
+          requireValue
+          onConfirm={(password) => {
+            setPasswordPromptOpen(false);
+            void start(password);
+          }}
+          onCancel={() => setPasswordPromptOpen(false)}
+        />
+      )}
     </div>
   );
 }

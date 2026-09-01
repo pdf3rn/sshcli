@@ -38,6 +38,7 @@ export default function ProfileModal({ editing, knownGroups, onClose, onSaved }:
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const payload = {
+      original_name: editing?.name ?? null,
       name: name.trim(),
       host: host.trim(),
       port: Number(port),

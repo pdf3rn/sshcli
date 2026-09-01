@@ -47,6 +47,7 @@ pub struct TunnelInfo {
 pub async fn tunnel_start(
     state: State<'_, TunnelState>,
     profile_name: String,
+    password: Option<String>,
     bind_host: String,
     bind_port: u16,
     target_host: String,
@@ -60,11 +61,21 @@ pub async fn tunnel_start(
         .find(|profile| profile.name == profile_name)
         .ok_or_else(|| format!("profile not found: {profile_name}"))?;
 
+    let supplied_password = password.filter(|password| !password.is_empty());
     let secret = match &profile.authentication {
         sshcli_core::Authentication::None => None,
-        _ => credentials::get(&profile_name).ok(),
+        _ => match supplied_password {
+            Some(password) => Some(password),
+            None => credentials::get_optional(&profile_name).map_err(|error| error.to_string())?,
+        },
     };
-    let options = ssh::options_for_profile(&profile, secret).map_err(|error| error.to_string())?;
+    let options = match ssh::options_for_profile(&profile, secret) {
+        Ok(options) => options,
+        Err(_) if matches!(profile.authentication, sshcli_core::Authentication::Password) => {
+            return Err(crate::session::PASSWORD_REQUIRED.into())
+        }
+        Err(error) => return Err(error.to_string()),
+    };
     let forward = LocalForward::start(
         options,
         bind_host.clone(),

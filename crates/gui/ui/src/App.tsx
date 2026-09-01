@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
 import NewConnectionModal from './NewConnectionModal';
+import PromptDialog from './PromptDialog';
 import ConnectionsView from './ConnectionsView';
 import HomeView from './HomeView';
 import SettingsView from './SettingsView';
@@ -11,6 +12,7 @@ import TerminalDockview from './TerminalDockview';
 import TopBar from './TopBar';
 import type { Profile, Tab, View } from './types';
 import { usePrefs } from './prefs';
+import { PASSWORD_REQUIRED } from './adhoc';
 import './styles.css';
 
 type ModalState = { open: boolean; editing: Profile | null };
@@ -21,6 +23,7 @@ function App() {
   const [modal, setModal] = useState<ModalState>({ open: false, editing: null });
   const [newConnModalOpen, setNewConnModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [passwordPromptProfile, setPasswordPromptProfile] = useState<string | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -80,16 +83,22 @@ function App() {
 
   const connectingRef = useRef(false);
 
-  const connect = useCallback(async (profileName: string) => {
+  const connect = useCallback(async (profileName: string, password?: string) => {
     if (connectingRef.current) return;
     connectingRef.current = true;
     setConnecting(true);
     try {
       const id = await invoke<string>('ssh_connect', {
         profileName,
+        password: password ?? null,
         columns: 120,
         rows: 40,
       });
+      if (password) {
+        await invoke('save_profile_secret', { name: profileName, secret: password }).catch((reason) => {
+          setError(`Conectado, pero no se pudo guardar la contraseña: ${String(reason)}`);
+        });
+      }
       setTabs((current) => [
         ...current,
         { kind: 'terminal', id, profile: profileName, connected: true },
@@ -97,6 +106,10 @@ function App() {
       setActiveTabId(id);
       setView('session');
     } catch (reason) {
+      if (!password && String(reason).includes(PASSWORD_REQUIRED)) {
+        setPasswordPromptProfile(profileName);
+        return;
+      }
       setError(String(reason));
     } finally {
       connectingRef.current = false;
@@ -205,6 +218,7 @@ function App() {
       try {
         const id = await invoke<string>('ssh_connect', {
           profileName: tab.profile,
+          password: null,
           columns: 120,
           rows: 40,
         });
@@ -216,8 +230,12 @@ function App() {
           ),
         );
         setActiveTabId(id);
-      } catch (reason) {
-        setError(String(reason));
+        } catch (reason) {
+          if (String(reason).includes(PASSWORD_REQUIRED)) {
+            setPasswordPromptProfile(tab.profile);
+            return;
+          }
+          setError(String(reason));
       } finally {
         setConnecting(false);
       }
@@ -417,6 +435,24 @@ function App() {
           onConnectAdhoc={connectAdhoc}
           onOpenLocal={() => void openLocalTab()}
           onClose={() => setNewConnModalOpen(false)}
+        />
+      )}
+
+      {passwordPromptProfile && (
+        <PromptDialog
+          title={`Contraseña para ${passwordPromptProfile}`}
+          description="No hay una contraseña guardada para este perfil. Se guardará si la conexión funciona."
+          label="Contraseña"
+          inputType="password"
+          trimValue={false}
+          confirmLabel="Conectar"
+          requireValue
+          onConfirm={(password) => {
+            const profileName = passwordPromptProfile;
+            setPasswordPromptProfile(null);
+            void connect(profileName, password);
+          }}
+          onCancel={() => setPasswordPromptProfile(null)}
         />
       )}
     </div>
