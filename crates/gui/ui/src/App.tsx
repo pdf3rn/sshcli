@@ -119,7 +119,10 @@ function App() {
 
   const adhocLabel = (target: string) => {
     const at = target.indexOf('@');
-    const host = target.slice(at + 1).split(':')[0];
+    const hostport = target.slice(at + 1);
+    const host = hostport.startsWith('[')
+      ? hostport.slice(0, hostport.indexOf(']') + 1)
+      : hostport.split(':')[0];
     return `${target.slice(0, at)}@${host}`;
   };
 

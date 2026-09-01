@@ -565,7 +565,7 @@ export default function SftpPanel({ profile }: Props) {
         <PromptDialog
           title={`¿Borrar ${dialog.entry.name}?`}
           description={
-            dialog.entry.is_dir ? 'Se eliminará la carpeta y todo su contenido.' : undefined
+            dialog.entry.is_dir ? 'Solo se pueden eliminar carpetas vacías.' : undefined
           }
           confirmLabel="Borrar"
           danger

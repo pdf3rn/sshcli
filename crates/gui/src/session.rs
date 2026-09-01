@@ -139,7 +139,21 @@ fn parse_adhoc_target(target: &str) -> Result<(String, String, u16), String> {
     if username.is_empty() || hostport.is_empty() {
         return Err(HINT.into());
     }
-    let (host, port) = match hostport.rsplit_once(':') {
+    let (host, port) = if let Some(bracketed) = hostport.strip_prefix('[') {
+        let (host, remainder) = bracketed
+            .split_once(']')
+            .ok_or_else(|| HINT.to_string())?;
+        let port = match remainder {
+            "" => 22,
+            value => value
+                .strip_prefix(':')
+                .ok_or_else(|| HINT.to_string())?
+                .parse::<u16>()
+                .map_err(|_| format!("puerto inválido: {}", &value[1..]))?,
+        };
+        (host, port)
+    } else {
+        match hostport.rsplit_once(':') {
         Some((host, port)) => {
             let port = port
                 .parse::<u16>()
@@ -147,6 +161,7 @@ fn parse_adhoc_target(target: &str) -> Result<(String, String, u16), String> {
             (host, port)
         }
         None => (hostport, 22),
+        }
     };
     if host.is_empty() {
         return Err(HINT.into());

@@ -52,6 +52,24 @@ fn find_in_search_dirs(name: &str) -> Option<PathBuf> {
 
 /// Detecta el intérprete local: $SHELL → passwd del uid actual → candidatos conocidos.
 pub fn detect_shell() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        if let Ok(shell) = env::var("COMSPEC") {
+            let path = PathBuf::from(shell);
+            if is_executable_file(&path) {
+                return Some(path);
+            }
+        }
+        for candidate in ["powershell.exe", "pwsh.exe", "cmd.exe"] {
+            if let Some(path) = env::var_os("PATH").and_then(|paths| {
+                env::split_paths(&paths)
+                    .map(|directory| directory.join(candidate))
+                    .find(|path| is_executable_file(path))
+            }) {
+                return Some(path);
+            }
+        }
+    }
     if let Ok(shell) = env::var("SHELL") {
         let path = PathBuf::from(&shell);
         if is_executable_file(&path) {

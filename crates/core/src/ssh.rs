@@ -1,9 +1,9 @@
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use russh::{client, ChannelMsg};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
 
 use crate::{
     error::{AppError, AppResult},
@@ -11,6 +11,8 @@ use crate::{
 };
 
 pub struct ClientHandler {
+    host: String,
+    port: u16,
     accept_unknown_host_key: bool,
 }
 
@@ -19,9 +21,15 @@ impl client::Handler for ClientHandler {
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &russh::keys::PublicKey,
+        server_public_key: &russh::keys::PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(self.accept_unknown_host_key)
+        Ok(crate::host_keys::verify_or_add(
+            &self.host,
+            self.port,
+            &server_public_key.to_string(),
+            self.accept_unknown_host_key,
+        )
+        .unwrap_or(false))
     }
 }
 
@@ -63,11 +71,12 @@ pub fn options_for_profile(
 }
 
 fn default_identity_file() -> Option<String> {
-    let home = std::env::var("HOME").ok()?;
+    let home = directories::BaseDirs::new()?.home_dir().to_path_buf();
     ["id_ed25519", "id_ecdsa", "id_rsa"]
         .into_iter()
-        .map(|name| format!("{home}/.ssh/{name}"))
-        .find(|path| Path::new(path).exists())
+        .map(|name| home.join(".ssh").join(name))
+        .find(|path| path.exists())
+        .map(|path| path.to_string_lossy().into_owned())
 }
 
 pub fn options_adhoc(
@@ -195,18 +204,28 @@ impl LocalForward {
     ) -> AppResult<Self> {
         let listener = TcpListener::bind((bind_host.as_str(), bind_port)).await?;
         let bind_addr = listener.local_addr()?;
-        let session = authenticate(options).await?;
+        let session = Arc::new(authenticate(options).await?);
         let stop = Arc::new(Notify::new());
         let stop_task = stop.clone();
         let target = target_host.clone();
         let join = tokio::spawn(async move {
+            let mut forwards = JoinSet::new();
             loop {
                 tokio::select! {
                     connection = listener.accept() => {
                         let (socket, origin) = connection?;
-                        forward_connection(&session, socket, origin, &target, target_port).await?;
+                        let session = session.clone();
+                        let target = target.clone();
+                        forwards.spawn(async move {
+                            let _ = forward_connection(&session, socket, origin, &target, target_port).await;
+                        });
                     }
-                    _ = stop_task.notified() => break,
+                    _ = stop_task.notified() => {
+                        forwards.abort_all();
+                        while forwards.join_next().await.is_some() {}
+                        break;
+                    }
+                    _ = forwards.join_next(), if !forwards.is_empty() => {}
                 }
             }
             Ok(())
@@ -259,16 +278,21 @@ async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<Cl
         Arc::new(config),
         address,
         ClientHandler {
+            host: options.host.clone(),
+            port: options.port,
             accept_unknown_host_key: options.accept_unknown_host_key,
         },
     )
     .await?;
 
-    let key_path = options.identity_file.as_deref().map(Path::new);
+    let key_path = options
+        .identity_file
+        .as_deref()
+        .map(crate::keys::expand_home);
     let key = match key_path {
         Some(path) => match &options.authentication {
             Authentication::PrivateKey(passphrase) => {
-                Some(russh::keys::load_secret_key(path, passphrase.as_deref())?)
+                Some(russh::keys::load_secret_key(&path, passphrase.as_deref())?)
             }
             _ => None,
         },

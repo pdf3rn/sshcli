@@ -5,7 +5,7 @@ use russh_sftp::{
     protocol::{FileType, OpenFlags},
 };
 use tokio::{
-    fs::File,
+    fs::{self, File},
     io::{self, AsyncWriteExt},
 };
 
@@ -57,19 +57,33 @@ where
         .and_then(|metadata| metadata.size)
         .unwrap_or(0);
     on_progress(0, total);
-    let mut destination = File::create(local).await?;
-    let mut copied: u64 = 0;
-    let mut buffer = vec![0u8; 64 * 1024];
-    loop {
-        let read = io::AsyncReadExt::read(&mut source, &mut buffer).await?;
-        if read == 0 {
-            break;
+    let temporary = local.with_extension("sshcli-part");
+    let result: AppResult<()> = async {
+        let mut destination = File::create(&temporary).await?;
+        let mut copied: u64 = 0;
+        let mut buffer = vec![0u8; 64 * 1024];
+        loop {
+            let read = io::AsyncReadExt::read(&mut source, &mut buffer).await?;
+            if read == 0 {
+                break;
+            }
+            destination.write_all(&buffer[..read]).await?;
+            copied += read as u64;
+            on_progress(copied, total);
         }
-        destination.write_all(&buffer[..read]).await?;
-        copied += read as u64;
-        on_progress(copied, total);
+        destination.flush().await?;
+        destination.sync_all().await?;
+        Ok(())
     }
-    destination.flush().await?;
+    .await;
+    if let Err(error) = result {
+        let _ = fs::remove_file(&temporary).await;
+        return Err(error.into());
+    }
+    if local.exists() {
+        fs::remove_file(local).await?;
+    }
+    fs::rename(temporary, local).await?;
     Ok(())
 }
 
@@ -80,9 +94,11 @@ where
     let mut source = File::open(local).await?;
     let total = source.metadata().await.map(|meta| meta.len()).unwrap_or(0);
     on_progress(0, total);
+    let temporary = format!("{remote}.sshcli-part");
+    let result = async {
     let mut destination = session
         .open_with_flags(
-            remote,
+            &temporary,
             OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE,
         )
         .await
@@ -105,7 +121,17 @@ where
         .shutdown()
         .await
         .map_err(|error| AppError::Sftp(error.to_string()))?;
+    session
+        .rename(&temporary, remote)
+        .await
+        .map_err(|error| AppError::Sftp(error.to_string()))?;
     Ok(())
+    }
+    .await;
+    if result.is_err() {
+        let _ = session.remove_file(&temporary).await;
+    }
+    result
 }
 
 pub async fn remove_file(session: &SftpSession, path: &str) -> AppResult<()> {

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use serde::Serialize;
 use tauri::State;
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 use sshcli_core::{credentials, ssh, Authentication, ProfileStore};
 
@@ -45,7 +45,7 @@ impl ConnState {
 
 #[derive(Default)]
 pub struct TelemetryManager {
-    conns: Mutex<HashMap<String, ConnState>>,
+    conns: Mutex<HashMap<String, Arc<AsyncMutex<ConnState>>>>,
 }
 
 pub type TelemetryState = Arc<TelemetryManager>;
@@ -188,25 +188,54 @@ async fn sample_once(
     profile_name: &str,
     password: Option<String>,
 ) -> Result<TelemetrySample, String> {
-    let mut conns = state.conns.lock().await;
-    let healthy = matches!(conns.get(profile_name), Some(conn) if !conn.exec.is_closed());
-    if !healthy {
-        conns.remove(profile_name);
-        let mut conn = ConnState::new(connect_exec(profile_name, password).await?);
-        let warmup = conn
-            .exec
-            .run(SAMPLE_COMMAND)
-            .await
-            .map_err(|error| error.to_string())?;
-        let _ = parse_sample(&warmup, &mut conn);
-        conns.insert(profile_name.to_string(), conn);
+    let existing = state
+        .conns
+        .lock()
+        .map_err(|_| "telemetry state poisoned")?
+        .get(profile_name)
+        .cloned();
+    if let Some(conn) = existing {
+        if !conn.lock().await.exec.is_closed() {
+            return run_sample(state, profile_name, conn).await;
+        }
+        state
+            .conns
+            .lock()
+            .map_err(|_| "telemetry state poisoned")?
+            .remove(profile_name);
     }
 
-    let conn = conns.get_mut(profile_name).expect("connection inserted");
+    let mut conn = ConnState::new(connect_exec(profile_name, password).await?);
+    let warmup = conn
+        .exec
+        .run(SAMPLE_COMMAND)
+        .await
+        .map_err(|error| error.to_string())?;
+    let _ = parse_sample(&warmup, &mut conn);
+    let conn = Arc::new(AsyncMutex::new(conn));
+    state
+        .conns
+        .lock()
+        .map_err(|_| "telemetry state poisoned")?
+        .insert(profile_name.to_string(), conn.clone());
+    run_sample(state, profile_name, conn).await
+}
+
+async fn run_sample(
+    state: &TelemetryState,
+    profile_name: &str,
+    conn: Arc<AsyncMutex<ConnState>>,
+) -> Result<TelemetrySample, String> {
+    let mut conn = conn.lock().await;
     match conn.exec.run(SAMPLE_COMMAND).await {
-        Ok(output) => parse_sample(&output, conn),
+        Ok(output) => parse_sample(&output, &mut conn),
         Err(error) => {
-            conns.remove(profile_name);
+            drop(conn);
+            state
+                .conns
+                .lock()
+                .map_err(|_| "telemetry state poisoned")?
+                .remove(profile_name);
             Err(error.to_string())
         }
     }
@@ -240,6 +269,10 @@ pub async fn telemetry_disconnect(
     state: State<'_, TelemetryState>,
     profile_name: String,
 ) -> Result<(), String> {
-    state.conns.lock().await.remove(&profile_name);
+    state
+        .conns
+        .lock()
+        .map_err(|_| "telemetry state poisoned")?
+        .remove(&profile_name);
     Ok(())
 }

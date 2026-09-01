@@ -6,6 +6,7 @@
 pub mod config;
 pub mod credentials;
 pub mod error;
+pub mod host_keys;
 pub mod keys;
 pub mod profiles;
 pub mod sftp;
