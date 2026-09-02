@@ -50,6 +50,7 @@ done
 
 if latest_tag=$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null); then
   candidate_version=$(git-cliff --config cliff.toml --bumped-version)
+  candidate_version="${candidate_version#v}"
 else
   latest_tag=""
   candidate_version="1.0.0"
@@ -102,6 +103,10 @@ for (const file of ['crates/gui/tauri.conf.json', 'package.json']) {
 NODE
 
 git-cliff --config cliff.toml --tag "$tag" --output CHANGELOG.md
+node <<'NODE'
+const fs = require('fs');
+fs.writeFileSync('CHANGELOG.md', `${fs.readFileSync('CHANGELOG.md', 'utf8').trimEnd()}\n`);
+NODE
 git add Cargo.toml crates/gui/tauri.conf.json package.json CHANGELOG.md
 git commit -m "chore(release): ${tag}"
 git tag -a "$tag" -m "Release ${tag}"
