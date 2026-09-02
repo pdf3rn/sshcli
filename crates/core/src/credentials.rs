@@ -12,10 +12,6 @@ fn profile_key(profile_name: &str) -> String {
         .collect()
 }
 
-fn target(profile_name: &str) -> String {
-    format!("sshcli.profile.{}", profile_key(profile_name))
-}
-
 fn user(profile_name: &str) -> String {
     format!("profile.{}", profile_key(profile_name))
 }
@@ -27,7 +23,7 @@ fn fallback_path(profile_name: &str) -> PathBuf {
 }
 
 fn entry(profile_name: &str) -> Result<keyring::Entry, keyring::Error> {
-    keyring::Entry::new_with_target(&target(profile_name), SERVICE, &user(profile_name))
+    keyring::Entry::new(SERVICE, &user(profile_name))
 }
 
 fn legacy_entry(profile_name: &str) -> Result<keyring::Entry, keyring::Error> {
