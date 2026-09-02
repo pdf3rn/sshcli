@@ -36,6 +36,12 @@ type Props = {
   onClose: (id: string) => void;
   onReconnect: (id: string) => void;
   onCwd: (id: string, path: string) => void;
+  onDockviewReady: (actions: DockviewActions | null) => void;
+  onLayoutChange: (groupCount: number) => void;
+};
+
+export type DockviewActions = {
+  toggleSplit: () => void;
 };
 
 function panelTitle(tab: Tab): string {
@@ -98,6 +104,8 @@ export default function TerminalDockview({
   onClose,
   onReconnect,
   onCwd,
+  onDockviewReady,
+  onLayoutChange,
 }: Props) {
   const apiRef = useRef<DockviewApi | null>(null);
   const tabsRef = useRef(tabs);
@@ -150,6 +158,26 @@ export default function TerminalDockview({
   const onReady = (event: DockviewReadyEvent) => {
     apiRef.current = event.api;
     syncPanels(event.api);
+    const reportLayout = () => onLayoutChange(event.api.groups.length);
+    onDockviewReady({
+      toggleSplit: () => {
+        const active = event.api.activePanel;
+        if (!active) return;
+        if (event.api.groups.length > 1) {
+          const targetGroup = active.api.group;
+          for (const panel of event.api.panels) {
+            if (panel.api.group !== targetGroup) {
+              panel.api.moveTo({ group: targetGroup, position: 'center', skipSetActive: true });
+            }
+          }
+        } else {
+          active.api.moveTo({ group: active.api.group, position: 'right' });
+        }
+        reportLayout();
+      },
+    });
+    reportLayout();
+    event.api.onDidLayoutChange(reportLayout);
     event.api.onDidActivePanelChange((active) => {
       const id = active.panel?.id;
       if (!id || !tabsRef.current.some((tab) => tab.id === id)) return;
@@ -165,6 +193,7 @@ export default function TerminalDockview({
     <DockviewReact
       className="dockview-theme-abyss sshcli-dockview"
       components={components}
+      dndStrategy="pointer"
       leftHeaderActionsComponent={HeaderActions}
       onReady={onReady}
     />

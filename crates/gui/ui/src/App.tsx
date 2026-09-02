@@ -8,7 +8,7 @@ import ConnectionsView from './ConnectionsView';
 import HomeView from './HomeView';
 import SettingsView from './SettingsView';
 import StatusBar from './StatusBar';
-import TerminalDockview from './TerminalDockview';
+import TerminalDockview, { type DockviewActions } from './TerminalDockview';
 import TopBar from './TopBar';
 import type { Profile, Tab, View } from './types';
 import { usePrefs } from './prefs';
@@ -39,6 +39,13 @@ function App() {
   tabsRef.current = tabs;
   const activeRef = useRef<string | null>(null);
   activeRef.current = activeTabId;
+  const dockviewActionsRef = useRef<DockviewActions | null>(null);
+  const [dockviewReady, setDockviewReady] = useState(false);
+  const [splitActive, setSplitActive] = useState(false);
+
+  useEffect(() => {
+    setDockviewReady(dockviewActionsRef.current !== null);
+  }, [tabs]);
 
   const refresh = useCallback(
     () =>
@@ -369,6 +376,11 @@ function App() {
               onClose={closeTab}
               onReconnect={reconnect}
               onCwd={rememberCwd}
+              onDockviewReady={(actions) => {
+                dockviewActionsRef.current = actions;
+                setDockviewReady(actions !== null);
+              }}
+              onLayoutChange={(groupCount) => setSplitActive(groupCount > 1)}
             />
           ) : (
             <main className="content">
@@ -399,9 +411,9 @@ function App() {
       <StatusBar
         liveSessions={liveSessions}
         connecting={connecting}
-        canSplit={false}
-        splitActive={false}
-        onToggleSplit={() => undefined}
+        canSplit={dockviewReady && tabs.length > 1}
+        splitActive={splitActive}
+        onToggleSplit={() => dockviewActionsRef.current?.toggleSplit()}
         telemetryAvailable={
           activeTab?.kind === 'terminal' &&
           prefs.telemetryEnabled === true &&
