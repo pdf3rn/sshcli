@@ -47,9 +47,10 @@ sudo apt install \
   libwebkit2gtk-4.1-dev \
   libgtk-3-dev \
   libayatana-appindicator3-dev \
-  librsvg2-dev \
-  libxdo-dev \
-  libssl-dev
+   librsvg2-dev \
+   libxdo-dev \
+   libdbus-1-dev \
+   libssl-dev
 ```
 
 ### Windows
