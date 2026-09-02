@@ -98,6 +98,27 @@ npm run build:web
 cargo test --workspace
 ```
 
+## Releases
+
+Los releases usan Conventional Commits y `git-cliff`. Inspeccionar la siguiente
+versión y sus notas sin modificar el repositorio:
+
+```bash
+bin/release --dry
+```
+
+Crear el commit de versión, regenerar `CHANGELOG.md` y crear el tag local:
+
+```bash
+bin/release
+```
+
+Publicar el release después de revisarlo:
+
+```bash
+git push origin HEAD --follow-tags
+```
+
 ## Compilación De Escritorio
 
 El build completo compila primero el frontend y después genera los artefactos

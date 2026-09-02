@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  printf '%s\n' "Usage: bin/release [--dry]"
+}
+
+dry_run=false
+case "${1:-}" in
+  "") ;;
+  --dry) dry_run=true ;;
+  -h|--help) usage; exit 0 ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+for command in git git-cliff node cargo npx; do
+  command -v "$command" >/dev/null || {
+    printf 'Required command not found: %s\n' "$command" >&2
+    exit 1
+  }
+done
+
+if ! "$dry_run"; then
+  git diff --quiet && git diff --cached --quiet || {
+    printf '%s\n' 'Release requires a clean worktree.' >&2
+    exit 1
+  }
+fi
+
+read_versions() {
+  node <<'NODE'
+const fs = require('fs');
+const cargo = fs.readFileSync('Cargo.toml', 'utf8');
+const cargoMatch = cargo.match(/\[workspace\.package\][\s\S]*?^version = "([^"]+)"/m);
+if (!cargoMatch) throw new Error('workspace package version not found in Cargo.toml');
+const tauri = JSON.parse(fs.readFileSync('crates/gui/tauri.conf.json', 'utf8')).version;
+const packageVersion = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+console.log([cargoMatch[1], tauri, packageVersion].join('\n'));
+NODE
+}
+
+mapfile -t versions <<< "$(read_versions)"
+current_version="${versions[0]}"
+for version in "${versions[@]}"; do
+  if [[ "$version" != "$current_version" ]]; then
+    printf 'Version mismatch: Cargo=%s, Tauri=%s, package.json=%s\n' "${versions[0]}" "${versions[1]}" "${versions[2]}" >&2
+    exit 1
+  fi
+done
+
+if latest_tag=$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null); then
+  candidate_version=$(git-cliff --config cliff.toml --bumped-version)
+else
+  latest_tag=""
+  candidate_version="1.0.0"
+fi
+
+compare_versions() {
+  node - "$1" "$2" <<'NODE'
+const [current, candidate] = process.argv.slice(2).map((version) => {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`invalid semver: ${version}`);
+  return version.split('.').map(Number);
+});
+for (let index = 0; index < 3; index += 1) {
+  if (candidate[index] > current[index]) process.exit(0);
+  if (candidate[index] < current[index]) process.exit(1);
+}
+process.exit(1);
+NODE
+}
+
+if ! compare_versions "$current_version" "$candidate_version"; then
+  printf 'No versionable commits since %s; current version remains %s.\n' "${latest_tag:-repository start}" "$current_version"
+  exit 0
+fi
+
+tag="v${candidate_version}"
+notes=$(git-cliff --config cliff.toml --unreleased --tag "$tag" --strip header)
+printf 'Current version: %s\nCandidate version: %s\nTag: %s\n\n%s\n' "$current_version" "$candidate_version" "$tag" "$notes"
+
+if "$dry_run"; then
+  printf '%s\n' 'Dry run: no files, commit, or tag were created.'
+  exit 0
+fi
+
+cargo test -p sshcli-core
+npx tsc --noEmit --project crates/gui/ui/tsconfig.json
+
+node - "$candidate_version" <<'NODE'
+const fs = require('fs');
+const version = process.argv[2];
+const cargoPath = 'Cargo.toml';
+const cargo = fs.readFileSync(cargoPath, 'utf8');
+const nextCargo = cargo.replace(/(\[workspace\.package\][\s\S]*?^version = ")[^"]+(")/m, `$1${version}$2`);
+if (cargo === nextCargo) throw new Error('could not update Cargo.toml version');
+fs.writeFileSync(cargoPath, nextCargo);
+for (const file of ['crates/gui/tauri.conf.json', 'package.json']) {
+  const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+  json.version = version;
+  fs.writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+}
+NODE
+
+git-cliff --config cliff.toml --tag "$tag" --output CHANGELOG.md
+git add Cargo.toml crates/gui/tauri.conf.json package.json CHANGELOG.md
+git commit -m "chore(release): ${tag}"
+git tag -a "$tag" -m "Release ${tag}"
+printf 'Created release commit and local tag %s. Publish with: git push origin HEAD --follow-tags\n' "$tag"
