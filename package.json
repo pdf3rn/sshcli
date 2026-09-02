@@ -6,6 +6,7 @@
   "scripts": {
     "web:dev": "vite --config crates/gui/ui/vite.config.ts",
     "build:web": "vite build --config crates/gui/ui/vite.config.ts",
+    "tauri": "tauri",
     "dev": "tauri dev --config crates/gui/tauri.conf.json",
     "build": "tauri build --config crates/gui/tauri.conf.json"
   },

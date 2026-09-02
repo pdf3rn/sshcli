@@ -42,3 +42,4 @@ jobs:
           releaseBody: "Ver ${{ github.ref_name }}."
           releaseDraft: true
           prerelease: false
+          args: --config crates/gui/tauri.conf.json
