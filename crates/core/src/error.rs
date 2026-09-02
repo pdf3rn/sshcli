@@ -10,6 +10,13 @@ pub enum AppError {
     Key(#[from] russh::keys::Error),
     #[error("ssh authentication failed")]
     AuthenticationFailed,
+    #[error("host key verification failed")]
+    HostKey {
+        host: String,
+        port: u16,
+        key: String,
+        changed: bool,
+    },
     #[error("profile error: {0}")]
     Profile(String),
     #[error("credential error: {0}")]

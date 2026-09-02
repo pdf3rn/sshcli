@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import PromptDialog from './PromptDialog';
+import HostKeyDialog from './HostKeyDialog';
 import { PASSWORD_REQUIRED } from './adhoc';
+import { parseHostKeyError, type HostKeyPrompt } from './hostkey';
 
 type Tunnel = { id: string; profile: string; local: string; target: string };
 type Props = { profile: string; onClose: () => void };
@@ -13,6 +15,8 @@ export default function TunnelPanel({ profile, onClose }: Props) {
   const [targetPort, setTargetPort] = useState('80');
   const [message, setMessage] = useState<string | null>(null);
   const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
+  const [hostKeyPrompt, setHostKeyPrompt] = useState<HostKeyPrompt | null>(null);
+  const hostKeyRetryRef = useRef<(() => void) | null>(null);
 
   const refresh = useCallback(() => {
     invoke<Tunnel[]>('tunnel_list')
@@ -46,9 +50,15 @@ export default function TunnelPanel({ profile, onClose }: Props) {
     } catch (reason) {
       if (!password && String(reason).includes(PASSWORD_REQUIRED)) {
         setPasswordPromptOpen(true);
-      } else {
-        setMessage(String(reason));
+        return;
       }
+      const hostKey = parseHostKeyError(String(reason));
+      if (hostKey) {
+        hostKeyRetryRef.current = () => void start();
+        setHostKeyPrompt(hostKey);
+        return;
+      }
+      setMessage(String(reason));
     }
   };
 
@@ -143,6 +153,33 @@ export default function TunnelPanel({ profile, onClose }: Props) {
             void start(password);
           }}
           onCancel={() => setPasswordPromptOpen(false)}
+        />
+      )}
+      {hostKeyPrompt && (
+        <HostKeyDialog
+          host={hostKeyPrompt.host}
+          port={hostKeyPrompt.port}
+          key={hostKeyPrompt.key}
+          changed={hostKeyPrompt.changed}
+          onConfirm={() => {
+            const prompt = hostKeyPrompt;
+            const retry = hostKeyRetryRef.current;
+            setHostKeyPrompt(null);
+            hostKeyRetryRef.current = null;
+            void invoke('ssh_trust_host_key', {
+              host: prompt.host,
+              port: prompt.port,
+              key: prompt.key,
+            })
+              .then(() => {
+                if (retry) retry();
+              })
+              .catch((reason) => setMessage(String(reason)));
+          }}
+          onCancel={() => {
+            setHostKeyPrompt(null);
+            hostKeyRetryRef.current = null;
+          }}
         />
       )}
     </div>

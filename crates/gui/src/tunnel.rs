@@ -84,7 +84,7 @@ pub async fn tunnel_start(
         target_port,
     )
     .await
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| crate::session::map_ssh_error(error))?;
 
     let local = forward.bind_addr.to_string();
     let target = format!("{}:{}", forward.target_host, forward.target_port);

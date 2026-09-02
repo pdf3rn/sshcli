@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import PromptDialog from './PromptDialog';
+import HostKeyDialog from './HostKeyDialog';
 import { PASSWORD_REQUIRED } from './adhoc';
+import { parseHostKeyError, type HostKeyPrompt } from './hostkey';
 import { FileIcon, FolderIcon } from './icons';
 
 const SKELETON_WIDTHS = ['85%', '70%', '92%', '60%', '78%', '88%'];
@@ -140,6 +142,8 @@ export default function SftpPanel({ profile }: Props) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [password, setPassword] = useState<string | null>(null);
   const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
+  const [hostKeyPrompt, setHostKeyPrompt] = useState<HostKeyPrompt | null>(null);
+  const [hostKeyRetry, setHostKeyRetry] = useState(0);
   const mounted = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -223,7 +227,12 @@ export default function SftpPanel({ profile }: Props) {
         if (mounted.current && String(reason).includes(PASSWORD_REQUIRED)) {
           setPasswordPromptOpen(true);
         } else if (mounted.current) {
-          setMessage(String(reason));
+          const hostKey = parseHostKeyError(String(reason));
+          if (hostKey) {
+            setHostKeyPrompt(hostKey);
+          } else {
+            setMessage(String(reason));
+          }
         }
       }
     })();
@@ -234,7 +243,7 @@ export default function SftpPanel({ profile }: Props) {
         sessionIdRef.current = null;
       }
     };
-  }, [profile, password, refreshRemote, refreshLocal]);
+  }, [profile, password, hostKeyRetry, refreshRemote, refreshLocal]);
 
   const base = (path: string) => path.replace(/\/$/, '');
 
@@ -591,6 +600,26 @@ export default function SftpPanel({ profile }: Props) {
             setPassword(value);
           }}
           onCancel={() => setPasswordPromptOpen(false)}
+        />
+      )}
+      {hostKeyPrompt && (
+        <HostKeyDialog
+          host={hostKeyPrompt.host}
+          port={hostKeyPrompt.port}
+          key={hostKeyPrompt.key}
+          changed={hostKeyPrompt.changed}
+          onConfirm={() => {
+            const prompt = hostKeyPrompt;
+            setHostKeyPrompt(null);
+            void invoke('ssh_trust_host_key', {
+              host: prompt.host,
+              port: prompt.port,
+              key: prompt.key,
+            })
+              .then(() => setHostKeyRetry((n) => n + 1))
+              .catch((reason) => setMessage(String(reason)));
+          }}
+          onCancel={() => setHostKeyPrompt(null)}
         />
       )}
     </div>

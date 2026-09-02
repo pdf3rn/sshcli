@@ -144,6 +144,11 @@ pub fn delete_profile(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn ssh_trust_host_key(host: String, port: u16, key: String) -> Result<(), String> {
+    sshcli_core::host_keys::add(&host, port, &key).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn save_profile_secret(name: String, secret: String) -> Result<(), String> {
     if secret.is_empty() {
         return Err("credential cannot be empty".into());

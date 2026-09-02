@@ -1,4 +1,5 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use russh::{client, ChannelMsg};
 use tokio::net::{TcpListener, TcpStream};
@@ -7,13 +8,32 @@ use tokio::task::{JoinHandle, JoinSet};
 
 use crate::{
     error::{AppError, AppResult},
+    host_keys::HostKeyStatus,
     profiles::{Authentication as ProfileAuthentication, Profile},
 };
+
+#[derive(Debug, Clone)]
+pub struct RejectedHostKey {
+    pub host: String,
+    pub port: u16,
+    pub key: String,
+    pub status: HostKeyStatus,
+}
 
 pub struct ClientHandler {
     host: String,
     port: u16,
     accept_unknown_host_key: bool,
+    rejected: Arc<Mutex<Option<RejectedHostKey>>>,
+}
+
+impl ClientHandler {
+    pub fn rejected(&self) -> Option<RejectedHostKey> {
+        self.rejected
+            .lock()
+            .ok()
+            .and_then(|guard| guard.clone())
+    }
 }
 
 impl client::Handler for ClientHandler {
@@ -23,14 +43,47 @@ impl client::Handler for ClientHandler {
         &mut self,
         server_public_key: &russh::keys::PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(crate::host_keys::verify_or_add(
-            &self.host,
-            self.port,
-            &server_public_key.to_string(),
-            self.accept_unknown_host_key,
-        )
-        .unwrap_or(false))
+        let key = server_public_key.to_string();
+        let status = match crate::host_keys::verify(&self.host, self.port, &key) {
+            Ok(status) => status,
+            Err(_) => return Ok(false),
+        };
+        match status {
+            HostKeyStatus::Known => Ok(true),
+            HostKeyStatus::Unknown if self.accept_unknown_host_key => {
+                Ok(crate::host_keys::add(&self.host, self.port, &key).is_ok())
+            }
+            HostKeyStatus::Unknown | HostKeyStatus::Changed => {
+                if let Ok(mut guard) = self.rejected.lock() {
+                    *guard = Some(RejectedHostKey {
+                        host: self.host.clone(),
+                        port: self.port,
+                        key,
+                        status,
+                    });
+                }
+                Ok(false)
+            }
+        }
     }
+}
+
+fn host_key_error(handler_rejected: &Arc<Mutex<Option<RejectedHostKey>>>, error: russh::Error) -> AppError {
+    if matches!(error, russh::Error::UnknownKey) {
+        if let Some(rejected) = handler_rejected
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.take())
+        {
+            return AppError::HostKey {
+                host: rejected.host,
+                port: rejected.port,
+                key: rejected.key,
+                changed: rejected.status == HostKeyStatus::Changed,
+            };
+        }
+    }
+    AppError::from(error)
 }
 
 pub struct ConnectionOptions {
@@ -274,6 +327,7 @@ async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<Cl
         ..Default::default()
     };
     let address = (options.host.as_str(), options.port);
+    let rejected: Arc<Mutex<Option<RejectedHostKey>>> = Arc::new(Mutex::new(None));
     let mut session = client::connect(
         Arc::new(config),
         address,
@@ -281,9 +335,11 @@ async fn authenticate(options: ConnectionOptions) -> AppResult<client::Handle<Cl
             host: options.host.clone(),
             port: options.port,
             accept_unknown_host_key: options.accept_unknown_host_key,
+            rejected: rejected.clone(),
         },
     )
-    .await?;
+    .await
+    .map_err(|error| host_key_error(&rejected, error))?;
 
     let key_path = options
         .identity_file

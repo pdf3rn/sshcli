@@ -95,7 +95,7 @@ pub async fn sftp_connect(
     };
     let session = ssh::open_sftp(options)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| crate::session::map_ssh_error(error))?;
 
     let id = {
         let mut manager = state.lock().map_err(|_| "sftp state poisoned")?;

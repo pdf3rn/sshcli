@@ -87,7 +87,7 @@ pub async fn ssh_connect(
     };
     let (channel, handle) = ssh::open_shell(options, columns, rows)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| map_ssh_error(error))?;
 
     let id = register_session(&app, &state, profile_name.clone(), channel, Arc::new(handle)).await?;
 
@@ -122,13 +122,28 @@ pub async fn ssh_connect_adhoc(
         {
             return Err(PASSWORD_REQUIRED.into());
         }
-        Err(error) => return Err(error.to_string()),
+        Err(error) => return Err(map_ssh_error(error)),
     };
 
     register_session(&app, &state, display, channel.0, Arc::new(channel.1)).await
 }
 
 pub const PASSWORD_REQUIRED: &str = "sshcli:password-required";
+
+pub const HOST_KEY_PREFIX: &str = "sshcli:host-key:";
+
+pub fn map_ssh_error(error: sshcli_core::AppError) -> String {
+    if let sshcli_core::AppError::HostKey { host, port, key, changed } = error {
+        let payload = serde_json::json!({
+            "host": host,
+            "port": port,
+            "key": key,
+            "changed": changed,
+        });
+        return format!("{HOST_KEY_PREFIX}{}", payload);
+    }
+    error.to_string()
+}
 
 fn parse_adhoc_target(target: &str) -> Result<(String, String, u16), String> {
     const HINT: &str = "formato esperado usuario@host[:puerto]";

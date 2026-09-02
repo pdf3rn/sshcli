@@ -4,6 +4,8 @@ import { listen } from '@tauri-apps/api/event';
 import ProfileModal from './ProfileModal';
 import NewConnectionModal from './NewConnectionModal';
 import PromptDialog from './PromptDialog';
+import HostKeyDialog from './HostKeyDialog';
+import { parseHostKeyError, type HostKeyPrompt } from './hostkey';
 import ConnectionsView from './ConnectionsView';
 import HomeView from './HomeView';
 import SettingsView from './SettingsView';
@@ -24,6 +26,8 @@ function App() {
   const [newConnModalOpen, setNewConnModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [passwordPromptProfile, setPasswordPromptProfile] = useState<string | null>(null);
+  const [hostKeyPrompt, setHostKeyPrompt] = useState<HostKeyPrompt | null>(null);
+  const hostKeyRetryRef = useRef<(() => void) | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -117,6 +121,12 @@ function App() {
         setPasswordPromptProfile(profileName);
         return;
       }
+      const hostKey = parseHostKeyError(String(reason));
+      if (hostKey) {
+        hostKeyRetryRef.current = () => void connect(profileName);
+        setHostKeyPrompt(hostKey);
+        return;
+      }
       setError(String(reason));
     } finally {
       connectingRef.current = false;
@@ -150,6 +160,14 @@ function App() {
       ]);
       setActiveTabId(id);
       setView('session');
+    } catch (reason) {
+      const hostKey = parseHostKeyError(String(reason));
+      if (hostKey) {
+        hostKeyRetryRef.current = () => void connectAdhoc(target);
+        setHostKeyPrompt(hostKey);
+        return;
+      }
+      setError(String(reason));
     } finally {
       connectingRef.current = false;
       setConnecting(false);
@@ -468,6 +486,34 @@ function App() {
             void connect(profileName, password);
           }}
           onCancel={() => setPasswordPromptProfile(null)}
+        />
+      )}
+
+      {hostKeyPrompt && (
+        <HostKeyDialog
+          host={hostKeyPrompt.host}
+          port={hostKeyPrompt.port}
+          key={hostKeyPrompt.key}
+          changed={hostKeyPrompt.changed}
+          onConfirm={() => {
+            const prompt = hostKeyPrompt;
+            const retry = hostKeyRetryRef.current;
+            setHostKeyPrompt(null);
+            hostKeyRetryRef.current = null;
+            void invoke('ssh_trust_host_key', {
+              host: prompt.host,
+              port: prompt.port,
+              key: prompt.key,
+            })
+              .then(() => {
+                if (retry) retry();
+              })
+              .catch((reason) => setError(String(reason)));
+          }}
+          onCancel={() => {
+            setHostKeyPrompt(null);
+            hostKeyRetryRef.current = null;
+          }}
         />
       )}
     </div>

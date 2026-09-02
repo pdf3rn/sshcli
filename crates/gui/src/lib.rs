@@ -19,6 +19,7 @@ pub fn run() {
             commands::update_profile,
             commands::delete_profile,
             commands::save_profile_secret,
+            commands::ssh_trust_host_key,
             commands::toggle_favorite,
             commands::touch_last_used,
             commands::import_profiles,
