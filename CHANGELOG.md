@@ -1,6 +1,18 @@
 # Changelog
 
 
+## [1.0.1] - 2026-09-02
+
+
+### Fixed
+
+- Normalize release versions
+
+- Configure native credential stores
+
+- Support tab splits in webviews
+
+
 ## [1.0.0] - 2026-09-02
 
 
@@ -154,4 +166,3 @@
 - Improve profile credential handling
 
 - Harden SSH operations
-
