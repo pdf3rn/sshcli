@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [1.1.0] - 2026-09-02
+
+
+### Added
+
+- Interactive host key confirmation on unknown or changed key
+
+
+### Fixed
+
+- Use plain keyring entry instead of custom target
+
+
 ## [1.0.1] - 2026-09-02
 
 
