@@ -4025,7 +4025,7 @@ dependencies = [
 
 [[package]]
 name = "sshcli-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "directories",
  "keyring",
@@ -4040,7 +4040,7 @@ dependencies = [
 
 [[package]]
 name = "sshcli-gui"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "portable-pty",
