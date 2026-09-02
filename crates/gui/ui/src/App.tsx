@@ -394,6 +394,7 @@ function App() {
               onClose={closeTab}
               onReconnect={reconnect}
               onCwd={rememberCwd}
+              onError={setError}
               onDockviewReady={(actions) => {
                 dockviewActionsRef.current = actions;
                 setDockviewReady(actions !== null);

@@ -24,6 +24,7 @@ type DockParams = {
   onClose: (id: string) => void;
   onReconnect: (id: string) => void;
   onCwd: (id: string, path: string) => void;
+  onError: (message: string) => void;
 };
 
 type Props = {
@@ -36,6 +37,7 @@ type Props = {
   onClose: (id: string) => void;
   onReconnect: (id: string) => void;
   onCwd: (id: string, path: string) => void;
+  onError: (message: string) => void;
   onDockviewReady: (actions: DockviewActions | null) => void;
   onLayoutChange: (groupCount: number) => void;
 };
@@ -51,7 +53,7 @@ function panelTitle(tab: Tab): string {
 }
 
 function DockPanel({ params }: IDockviewPanelProps<DockParams>) {
-  const { tab, prefs, cwd, onClose, onReconnect, onCwd } = params;
+  const { tab, prefs, cwd, onClose, onReconnect, onCwd, onError } = params;
   if (tab.kind === 'terminal' || tab.kind === 'local') {
     const transport = tab.kind === 'local' ? 'local' : 'ssh';
     return (
@@ -65,6 +67,7 @@ function DockPanel({ params }: IDockviewPanelProps<DockParams>) {
           onClose={onClose}
           onReconnect={onReconnect}
           onCwd={onCwd}
+          onError={onError}
         />
         {tab.kind === 'terminal' && prefs.telemetryEnabled && prefs.telemetryPanelOpen && (
           <TelemetryPanel profile={tab.profile} />
@@ -104,6 +107,7 @@ export default function TerminalDockview({
   onClose,
   onReconnect,
   onCwd,
+  onError,
   onDockviewReady,
   onLayoutChange,
 }: Props) {
@@ -119,6 +123,7 @@ export default function TerminalDockview({
     onClose,
     onReconnect,
     onCwd,
+    onError,
   });
 
   const components = useMemo(() => ({ session: DockPanel }), []);

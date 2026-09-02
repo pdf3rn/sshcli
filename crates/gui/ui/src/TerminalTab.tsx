@@ -95,6 +95,7 @@ type Props = {
   onClose: (sessionId: string) => void;
   onReconnect: (sessionId: string) => void;
   onCwd?: (sessionId: string, path: string) => void;
+  onError: (message: string) => void;
 };
 
 const focusRegistry = new Map<string, () => void>();
@@ -117,6 +118,7 @@ export default function TerminalTab({
   onClose,
   onReconnect,
   onCwd,
+  onError,
 }: Props) {
   const writeCommand = transport === 'local' ? 'local_write' : 'ssh_write';
   const resizeCommand = transport === 'local' ? 'local_resize' : 'ssh_resize';
@@ -131,6 +133,8 @@ export default function TerminalTab({
   onCloseRef.current = onClose;
   const onCwdRef = useRef(onCwd);
   onCwdRef.current = onCwd;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
 
@@ -194,13 +198,16 @@ export default function TerminalTab({
     if (containerRef.current) observer.observe(containerRef.current);
     window.addEventListener('resize', resize);
 
+    let writeFailed = false;
     const dataListener = term.onData((data) => {
       const bytes = new TextEncoder().encode(data);
       let binary = '';
       for (const byte of bytes) binary += String.fromCharCode(byte);
-      invoke(writeCommand, { id: sessionId, data: btoa(binary) }).catch((reason) =>
-        console.error('write', reason),
-      );
+      invoke(writeCommand, { id: sessionId, data: btoa(binary) }).catch((reason) => {
+        if (writeFailed) return;
+        writeFailed = true;
+        onErrorRef.current(`No se pudo escribir en la terminal: ${String(reason)}`);
+      });
     });
 
     const selectionListener = term.onSelectionChange(() => {
@@ -250,7 +257,11 @@ export default function TerminalTab({
           term.blur();
         }
       });
-    })();
+      if (transport === 'local') {
+        await invoke('local_shell_ready', { id: sessionId });
+      }
+      requestAnimationFrame(() => term.focus());
+    })().catch((reason) => onErrorRef.current(`No se pudo preparar la terminal: ${String(reason)}`));
 
     return () => {
       disposed = true;

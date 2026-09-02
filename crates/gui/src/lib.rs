@@ -33,6 +33,7 @@ pub fn run() {
             session::ssh_close,
             local_shell::local_shell_detect,
             local_shell::local_shell_start,
+            local_shell::local_shell_ready,
             local_shell::local_write,
             local_shell::local_resize,
             local_shell::local_close,

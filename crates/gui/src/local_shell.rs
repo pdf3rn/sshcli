@@ -5,6 +5,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[cfg(windows)]
+use std::ffi::OsString;
+
 use base64::Engine;
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, PtySize};
 use serde::Serialize;
@@ -30,6 +33,12 @@ struct LocalShell {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
     master: Box<dyn portable_pty::MasterPty + Send>,
+    startup: Arc<Mutex<StartupOutput>>,
+}
+
+struct StartupOutput {
+    ready: bool,
+    pending: Vec<Vec<u8>>,
 }
 
 pub type LocalShellState = Arc<Mutex<LocalShellManager>>;
@@ -50,6 +59,39 @@ struct StatusPayload {
     profile: String,
     status: String,
     message: String,
+}
+
+fn local_shell_cwd() -> PathBuf {
+    #[cfg(windows)]
+    {
+        if let Some(home) = std::env::var_os("USERPROFILE").filter(|home| !home.is_empty()) {
+            return PathBuf::from(home);
+        }
+        if let (Some(drive), Some(path)) = (
+            std::env::var_os("HOMEDRIVE"),
+            std::env::var_os("HOMEPATH"),
+        ) {
+            let mut home = OsString::from(drive);
+            home.push(path);
+            return PathBuf::from(home);
+        }
+    }
+
+    if let Some(home) = std::env::var_os("HOME").filter(|home| !home.is_empty()) {
+        return PathBuf::from(home);
+    }
+
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+fn emit_data(app: &AppHandle, id: &str, data: &[u8]) {
+    let _ = app.emit(
+        "ssh-data",
+        DataPayload {
+            id: id.to_string(),
+            data: base64::engine::general_purpose::STANDARD.encode(data),
+        },
+    );
 }
 
 #[tauri::command]
@@ -82,7 +124,6 @@ pub fn local_shell_start(
     };
     let shell_str = shell_path.display().to_string();
 
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -94,7 +135,7 @@ pub fn local_shell_start(
         .map_err(|error| error.to_string())?;
 
     let mut command = CommandBuilder::new(&shell_str);
-    command.cwd(home);
+    command.cwd(local_shell_cwd());
     command.env("TERM", "xterm-256color");
 
     let mut child = pair
@@ -125,19 +166,49 @@ pub fn local_shell_start(
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| shell_str.clone());
 
+    let startup = Arc::new(Mutex::new(StartupOutput {
+        ready: false,
+        pending: Vec::new(),
+    }));
+    state
+        .lock()
+        .map_err(|_| "local shell state poisoned")?
+        .shells
+        .insert(
+            id.clone(),
+            LocalShell {
+                writer: Arc::new(Mutex::new(writer)),
+                killer: Arc::new(Mutex::new(killer)),
+                master: pair.master,
+                startup: startup.clone(),
+            },
+        );
+
     let read_app = app.clone();
     let read_id = id.clone();
+    let read_startup = startup;
     std::thread::spawn(move || {
         let mut buffer = [0u8; 8192];
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let payload = DataPayload {
-                        id: read_id.clone(),
-                        data: base64::engine::general_purpose::STANDARD.encode(&buffer[..n]),
+                    let data = buffer[..n].to_vec();
+                    let emit_now = {
+                        let mut startup = match read_startup.lock() {
+                            Ok(startup) => startup,
+                            Err(_) => break,
+                        };
+                        if startup.ready {
+                            true
+                        } else {
+                            startup.pending.push(data.clone());
+                            false
+                        }
                     };
-                    let _ = read_app.emit("ssh-data", payload);
+                    if emit_now {
+                        emit_data(&read_app, &read_id, &data);
+                    }
                 }
             }
         }
@@ -163,19 +234,31 @@ pub fn local_shell_start(
             .map(|mut guard| guard.shells.remove(&wait_id));
     });
 
-    state
+    Ok(serde_json::json!({ "id": id, "shell": shell_str, "profile": profile }))
+}
+
+#[tauri::command]
+pub fn local_shell_ready(
+    app: AppHandle,
+    state: State<'_, LocalShellState>,
+    id: String,
+) -> Result<(), String> {
+    let startup = state
         .lock()
         .map_err(|_| "local shell state poisoned")?
-        .shells.insert(
-            id.clone(),
-            LocalShell {
-                writer: Arc::new(Mutex::new(writer)),
-                killer: Arc::new(Mutex::new(killer)),
-                master: pair.master,
-            },
-        );
-
-    Ok(serde_json::json!({ "id": id, "shell": shell_str, "profile": profile }))
+        .shells
+        .get(&id)
+        .map(|shell| shell.startup.clone())
+        .ok_or_else(|| format!("unknown session: {id}"))?;
+    let pending = {
+        let mut startup = startup.lock().map_err(|_| "startup output poisoned")?;
+        startup.ready = true;
+        std::mem::take(&mut startup.pending)
+    };
+    for data in pending {
+        emit_data(&app, &id, &data);
+    }
+    Ok(())
 }
 
 fn shell_for(state: &State<'_, LocalShellState>, id: &str) -> Result<Arc<Mutex<Box<dyn Write + Send>>>, String> {
