@@ -1,6 +1,14 @@
 # Changelog
 
 
+## [1.1.1] - 2026-09-02
+
+
+### Fixed
+
+- Stabilize local terminal startup on Windows
+
+
 ## [1.1.0] - 2026-09-02
 
 
