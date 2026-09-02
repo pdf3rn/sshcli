@@ -7,7 +7,6 @@ description = "Core SSH/SFTP logic for sshcli, UI-independent"
 
 [dependencies]
 directories.workspace = true
-keyring.workspace = true
 russh.workspace = true
 russh-sftp.workspace = true
 serde.workspace = true
@@ -16,4 +15,11 @@ tokio.workspace = true
 toml.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+keyring = { workspace = true, features = ["windows-native"] }
 winapi = { version = "0.3", features = ["dpapi", "errhandlingapi", "winbase", "wincrypt"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { workspace = true, features = ["linux-native-sync-persistent", "crypto-rust"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { workspace = true, features = ["apple-native"] }

@@ -172,6 +172,8 @@ El paquete `.dmg` se genera en `target/release/bundle/dmg/`.
 - Los perfiles se gestionan desde la aplicación y se pueden importar/exportar
   como TOML.
 - Las contraseñas y secretos se almacenan en el keyring del sistema.
+- En Linux, la sesión de escritorio debe tener disponible un servicio Secret
+  Service, como `gnome-keyring` o KDE Wallet.
 - Las preferencias de interfaz se almacenan localmente en el perfil de usuario.
 - La configuración de empaquetado está en `crates/gui/tauri.conf.json`.
 
