@@ -3,6 +3,7 @@ import {
   LINE_HEIGHTS,
   SCROLLBACK_OPTIONS,
   type CursorStyle,
+  type Theme,
   type Prefs,
 } from './prefs';
 import { useEffect, useState } from 'react';
@@ -71,6 +72,11 @@ const CURSOR_CHOICES: Array<{ label: string; value: CursorStyle }> = [
   { label: '▮ Bloque', value: 'block' },
   { label: '_ Subrayado', value: 'underline' },
   { label: '| Barra', value: 'bar' },
+];
+
+const THEME_CHOICES: Array<{ label: string; value: Theme }> = [
+  { label: 'Oscuro', value: 'dark' },
+  { label: 'Claro', value: 'light' },
 ];
 
 export default function SettingsView({ prefs, onChange }: Props) {
@@ -202,8 +208,14 @@ export default function SettingsView({ prefs, onChange }: Props) {
 
         <Section
           title="Tema"
-          description="Graphite Terminal es el tema integrado; los colores del terminal lo siguen automáticamente."
+          description="El tema de la interfaz se guarda y se aplica inmediatamente."
         >
+          <Segmented
+            ariaLabel="Tema de la interfaz"
+            value={prefs.theme}
+            options={THEME_CHOICES}
+            onSelect={(value) => onChange({ theme: value })}
+          />
           <div className="theme-chip-row">
             <span className="theme-chip">
               <span className="theme-swatch" aria-hidden="true" />

@@ -359,7 +359,7 @@ function App() {
   );
 
   return (
-    <div className="app">
+    <div className="app" data-theme={prefs.theme}>
       <TopBar view={view} liveSessions={liveSessions} onNavigate={setView} />
 
       {error && (

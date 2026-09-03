@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
 export type CursorStyle = 'block' | 'underline' | 'bar';
+export type Theme = 'dark' | 'light';
 
 export type Prefs = {
   fontFamily: string;
@@ -16,6 +17,7 @@ export type Prefs = {
   remoteExplorerEnabled: boolean;
   remoteExplorerOpen: boolean;
   localShell: string;
+  theme: Theme;
 };
 
 export const FONT_OPTIONS = [
@@ -53,6 +55,7 @@ export const DEFAULT_PREFS: Prefs = {
   remoteExplorerEnabled: false,
   remoteExplorerOpen: false,
   localShell: '',
+  theme: 'dark',
 };
 
 const STORAGE_KEY = 'sshcli.prefs.v1';
