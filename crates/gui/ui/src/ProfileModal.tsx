@@ -6,13 +6,14 @@ import { useDialog } from './use-dialog';
 type Props = {
   editing: ProfileType | null;
   knownGroups: string[];
+  existingNames: string[];
   onClose: () => void;
   onSaved: () => void;
 };
 
 const AUTH_METHODS = ['password', 'private-key', 'none'] as const;
 
-export default function ProfileModal({ editing, knownGroups, onClose, onSaved }: Props) {
+export default function ProfileModal({ editing, knownGroups, existingNames, onClose, onSaved }: Props) {
   const [name, setName] = useState(editing?.name ?? '');
   const [host, setHost] = useState(editing?.host ?? '');
   const [port, setPort] = useState(String(editing?.port ?? 22));
@@ -34,9 +35,25 @@ export default function ProfileModal({ editing, knownGroups, onClose, onSaved }:
   }, []);
 
   const needsSecret = auth === 'password' || auth === 'private-key';
+  const validationErrors = [
+    !name.trim() ? 'El nombre es obligatorio.' : null,
+    existingNames.some(
+      (existing) => existing.toLowerCase() === name.trim().toLowerCase() && existing !== editing?.name,
+    )
+      ? 'Ya existe una conexión con ese nombre.'
+      : null,
+    !host.trim() ? 'El host es obligatorio.' : /\s/.test(host.trim()) ? 'El host no puede contener espacios.' : null,
+    !Number.isInteger(Number(port)) || Number(port) < 1 || Number(port) > 65535
+      ? 'El puerto debe estar entre 1 y 65535.'
+      : null,
+  ].filter((message): message is string => message !== null);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (validationErrors.length > 0) {
+      setError(validationErrors[0]);
+      return;
+    }
     const payload = {
       original_name: editing?.name ?? null,
       name: name.trim(),
@@ -80,12 +97,23 @@ export default function ProfileModal({ editing, knownGroups, onClose, onSaved }:
 
           <label className="field">
             <span>Nombre</span>
-            <input value={name} onChange={(event) => setName(event.target.value)} required autoFocus />
+           <input
+             value={name}
+             onChange={(event) => setName(event.target.value)}
+             required
+             autoFocus
+             aria-invalid={validationErrors.some((message) => message.includes('nombre'))}
+           />
           </label>
 
           <label className="field">
             <span>Host</span>
-            <input value={host} onChange={(event) => setHost(event.target.value)} required />
+           <input
+             value={host}
+             onChange={(event) => setHost(event.target.value)}
+             required
+             aria-invalid={validationErrors.some((message) => message.includes('host'))}
+           />
           </label>
 
           <div className="field-row">
@@ -97,6 +125,7 @@ export default function ProfileModal({ editing, knownGroups, onClose, onSaved }:
                 max={65535}
                 value={port}
                 onChange={(event) => setPort(event.target.value)}
+                aria-invalid={validationErrors.some((message) => message.includes('puerto'))}
               />
             </label>
             <label className="field">
@@ -186,7 +215,11 @@ export default function ProfileModal({ editing, knownGroups, onClose, onSaved }:
             </label>
           </div>
 
-          {error && <p className="form-error" role="alert">{error}</p>}
+           {(error || validationErrors.length > 0) && (
+             <p className="form-error" role="alert">
+               {error ?? validationErrors[0]}
+             </p>
+           )}
 
           <div className="modal-actions">
             <button type="button" className="btn ghost" onClick={onClose}>

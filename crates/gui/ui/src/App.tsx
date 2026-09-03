@@ -476,6 +476,7 @@ function App() {
         <ProfileModal
           editing={modal.editing}
           knownGroups={knownGroups}
+          existingNames={profiles.map((profile) => profile.name)}
           onClose={() => setModal({ open: false, editing: null })}
           onSaved={() => {
             setModal({ open: false, editing: null });
