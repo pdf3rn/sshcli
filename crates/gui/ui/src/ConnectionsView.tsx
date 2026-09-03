@@ -236,7 +236,16 @@ export default function ConnectionsView({
                     <tr
                       key={profile.name}
                       className={live ? 'row-live' : ''}
+                      tabIndex={0}
+                      aria-label={`${profile.name}, ${profile.username}@${profile.host}`}
                       onDoubleClick={() => onConnect(profile.name)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onConnect(profile.name);
+                        }
+                      }}
                       onContextMenu={(event) => openContextMenu(event, profile.name)}
                     >
                       <td className="col-status">

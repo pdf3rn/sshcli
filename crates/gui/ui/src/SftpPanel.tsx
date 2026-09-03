@@ -133,7 +133,14 @@ function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete, selected,
           </button>
         )}
         {onRename && (
-          <button type="button" className="icon-btn small" disabled={busy} title="Renombrar" onClick={() => onRename(entry)}>
+          <button
+            type="button"
+            className="icon-btn small"
+            disabled={busy}
+            aria-label={`Renombrar ${entry.name}`}
+            title="Renombrar"
+            onClick={() => onRename(entry)}
+          >
             ✎
           </button>
         )}
