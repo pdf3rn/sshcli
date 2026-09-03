@@ -152,6 +152,31 @@ export default function SettingsView({ prefs, onChange }: Props) {
           </label>
         </Section>
 
+        <Section title="Atajos de teclado" description="Los atajos usan Ctrl en Windows/Linux y Cmd en macOS.">
+          <div className="shortcut-list">
+            <div className="shortcut-row">
+              <span>Cambiar a la pestaña 1–9</span>
+              <kbd>Ctrl/Cmd + 1–9</kbd>
+            </div>
+            <div className="shortcut-row">
+              <span>Cambiar de pestaña</span>
+              <kbd>Ctrl/Cmd + Tab</kbd>
+            </div>
+            <div className="shortcut-row">
+              <span>Cerrar pestaña activa</span>
+              <kbd>Ctrl/Cmd + W</kbd>
+            </div>
+            <div className="shortcut-row">
+              <span>Buscar en terminal</span>
+              <kbd>Ctrl/Cmd + F</kbd>
+            </div>
+            <div className="shortcut-row">
+              <span>Copiar selección de terminal</span>
+              <kbd>Ctrl/Cmd + Shift + C</kbd>
+            </div>
+          </div>
+        </Section>
+
         <Section title="Cursor">
           <Field label="Estilo">
             <Segmented

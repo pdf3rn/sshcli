@@ -319,6 +319,10 @@ function App() {
       } else if ((key === 'tab' && event.shiftKey) || key === 'pageup') {
         event.preventDefault();
         cycleTabs(-1);
+      } else if (/^[1-9]$/.test(key) && tabsRef.current.length >= Number(key)) {
+        event.preventDefault();
+        setActiveTabId(tabsRef.current[Number(key) - 1].id);
+        setView('session');
       }
     };
     window.addEventListener('keydown', onKey);

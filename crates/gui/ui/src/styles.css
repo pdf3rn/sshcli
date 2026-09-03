@@ -1696,6 +1696,31 @@ button.explorer-row:focus-visible:not(:disabled) {
   font-size: var(--font-sm);
 }
 
+.shortcut-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--font-sm);
+}
+
+.shortcut-row kbd {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-alt);
+  font: inherit;
+  font-size: var(--font-xs);
+}
+
 .form-error {
   color: var(--danger);
   margin: 0;
