@@ -257,6 +257,20 @@ pub async fn sftp_mkdir(
 }
 
 #[tauri::command]
+pub async fn sftp_rename(
+    state: State<'_, SftpState>,
+    id: String,
+    old_path: String,
+    new_path: String,
+) -> Result<(), String> {
+    let session = fetch_session(&state, &id)?;
+    let session = session.lock().await;
+    sftp::rename(&session, &old_path, &new_path)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub async fn sftp_rm_file(
     state: State<'_, SftpState>,
     id: String,

@@ -46,6 +46,7 @@ pub fn run() {
             sftp_session::sftp_download,
             sftp_session::sftp_upload,
             sftp_session::sftp_mkdir,
+            sftp_session::sftp_rename,
             sftp_session::sftp_rm_file,
             sftp_session::sftp_rm_dir,
             sftp_session::sftp_file_exists,

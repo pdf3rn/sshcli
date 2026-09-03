@@ -24,6 +24,7 @@ type Props = { profile: string };
 type DialogState =
   | { kind: 'mkdir' }
   | { kind: 'delete'; entry: Entry }
+  | { kind: 'rename'; entry: Entry }
   | { kind: 'overwrite'; direction: 'down' | 'up'; entry: Entry };
 type TransferProgress = {
   name: string;
@@ -67,13 +68,23 @@ type RowProps = {
   onOpen: (entry: Entry) => void;
   onTransfer: (entry: Entry) => void;
   onDelete?: (entry: Entry) => void;
+  selected: boolean;
+  onSelect: (entry: Entry) => void;
+  onRename?: (entry: Entry) => void;
 };
 
-function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete }: RowProps) {
+function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete, selected, onSelect, onRename }: RowProps) {
   const action = remote ? 'Descargar' : 'Subir';
   return (
     <li>
       <div className="pane-item">
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={busy}
+          aria-label={`Seleccionar ${entry.name}`}
+          onChange={() => onSelect(entry)}
+        />
         {entry.is_dir ? (
           <button
             type="button"
@@ -121,6 +132,11 @@ function EntryRow({ entry, remote, busy, onOpen, onTransfer, onDelete }: RowProp
             ✕
           </button>
         )}
+        {onRename && (
+          <button type="button" className="icon-btn small" disabled={busy} title="Renombrar" onClick={() => onRename(entry)}>
+            ✎
+          </button>
+        )}
       </div>
     </li>
   );
@@ -140,6 +156,8 @@ export default function SftpPanel({ profile }: Props) {
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [selectedLocal, setSelectedLocal] = useState<Set<string>>(new Set());
+  const [selectedRemote, setSelectedRemote] = useState<Set<string>>(new Set());
   const [password, setPassword] = useState<string | null>(null);
   const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
   const [hostKeyPrompt, setHostKeyPrompt] = useState<HostKeyPrompt | null>(null);
@@ -388,6 +406,66 @@ export default function SftpPanel({ profile }: Props) {
     );
   };
 
+  const toggleSelection = (remote: boolean, entry: Entry) => {
+    const update = remote ? setSelectedRemote : setSelectedLocal;
+    update((current) => {
+      const next = new Set(current);
+      if (next.has(entry.name)) next.delete(entry.name);
+      else next.add(entry.name);
+      return next;
+    });
+  };
+
+  const transferSelected = async (direction: 'down' | 'up') => {
+    const selected = direction === 'down' ? selectedRemote : selectedLocal;
+    const entries = (direction === 'down' ? remoteEntries : localEntries).filter((entry) => selected.has(entry.name));
+    if (!sessionId || entries.length === 0) return;
+    setBusy(true);
+    try {
+      for (const entry of entries) {
+        if (direction === 'down') await performDownload(entry);
+        else await performUpload(entry);
+      }
+      if (direction === 'down') setSelectedRemote(new Set());
+      else setSelectedLocal(new Set());
+      setMessage(`${entries.length} elemento${entries.length === 1 ? '' : 's'} transferido${entries.length === 1 ? '' : 's'}.`);
+      await refreshRemote(sessionId, remotePath);
+    } catch (reason) {
+      setMessage(String(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uploadDropped = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!sessionId || busy) return;
+    const files = Array.from(event.dataTransfer.files)
+      .map((file) => (file as File & { path?: string }).path)
+      .filter((path): path is string => Boolean(path));
+    if (files.length === 0) {
+      setMessage('No se pudo obtener la ruta local de los archivos arrastrados.');
+      return;
+    }
+    setBusy(true);
+    try {
+      for (const local of files) {
+        const name = local.split(/[\\/]/).pop() ?? local;
+        await invoke('sftp_upload', {
+          id: sessionId,
+          local,
+          remote: `${base(remotePath)}/${name}`,
+        });
+      }
+      setMessage(`${files.length} archivo${files.length === 1 ? '' : 's'} subido${files.length === 1 ? '' : 's'}.`);
+      await refreshRemote(sessionId, remotePath);
+    } catch (reason) {
+      setMessage(String(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="sftp-panel">
       {message && (
@@ -399,7 +477,11 @@ export default function SftpPanel({ profile }: Props) {
         </div>
       )}
       <div className="pane-grid">
-        <div className="pane">
+        <div
+          className="pane"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => void uploadDropped(event)}
+        >
           <div className="pane-header">
             <button type="button" className="btn ghost small" onClick={goLocalUp} disabled={busy} aria-label="Subir al directorio local anterior">
               ↑
@@ -420,6 +502,9 @@ export default function SftpPanel({ profile }: Props) {
                 }
               }}
             />
+            <button type="button" className="btn ghost small" onClick={() => void transferSelected('up')} disabled={busy || selectedLocal.size === 0}>
+              Subir seleccionados
+            </button>
           </div>
           <ul className="pane-list" aria-busy={loadingLocal || undefined}>
             {loadingLocal ? (
@@ -437,12 +522,14 @@ export default function SftpPanel({ profile }: Props) {
                   busy={busy}
                   onOpen={(item) => void openLocalDir(item.name)}
                   onTransfer={(item) => requestTransfer('up', item)}
+                  selected={selectedLocal.has(entry.name)}
+                  onSelect={(item) => toggleSelection(false, item)}
                 />
               ))
             )}
           </ul>
           <div className="pane-footer muted small">
-            Clic en carpeta para abrir · ↑ sube el archivo seleccionado
+            Clic en carpeta para abrir · arrastra archivos aquí para subirlos
           </div>
         </div>
 
@@ -475,6 +562,9 @@ export default function SftpPanel({ profile }: Props) {
             >
               + carpeta
             </button>
+            <button type="button" className="btn ghost small" onClick={() => void transferSelected('down')} disabled={busy || selectedRemote.size === 0}>
+              Descargar seleccionados
+            </button>
           </div>
           <ul className="pane-list" aria-busy={loadingRemote || undefined}>
             {loadingRemote ? (
@@ -493,6 +583,9 @@ export default function SftpPanel({ profile }: Props) {
                   onOpen={(item) => void openRemoteDir(item.name)}
                   onTransfer={(item) => requestTransfer('down', item)}
                   onDelete={(item) => setDialog({ kind: 'delete', entry: item })}
+                  selected={selectedRemote.has(entry.name)}
+                  onSelect={(item) => toggleSelection(true, item)}
+                  onRename={(item) => setDialog({ kind: 'rename', entry: item })}
                 />
               ))
             )}
@@ -547,6 +640,29 @@ export default function SftpPanel({ profile }: Props) {
             void run(
               () => invoke('sftp_mkdir', { id: sessionId, path: `${base(remotePath)}/${value}` }),
               `Creado ${value}`,
+            );
+          }}
+        />
+      )}
+      {dialog?.kind === 'rename' && (
+        <PromptDialog
+          title={`Renombrar ${dialog.entry.name}`}
+          label="Nuevo nombre"
+          initialValue={dialog.entry.name}
+          confirmLabel="Renombrar"
+          requireValue
+          onCancel={() => setDialog(null)}
+          onConfirm={(value) => {
+            const entry = dialog.entry;
+            setDialog(null);
+            if (!sessionId || value === entry.name) return;
+            void run(
+              () => invoke('sftp_rename', {
+                id: sessionId,
+                oldPath: `${base(remotePath)}/${entry.name}`,
+                newPath: `${base(remotePath)}/${value}`,
+              }),
+              `Renombrado ${entry.name}`,
             );
           }}
         />

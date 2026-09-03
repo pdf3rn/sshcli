@@ -155,6 +155,13 @@ pub async fn create_dir(session: &SftpSession, path: &str) -> AppResult<()> {
         .map_err(|error| AppError::Sftp(error.to_string()))
 }
 
+pub async fn rename(session: &SftpSession, old_path: &str, new_path: &str) -> AppResult<()> {
+    session
+        .rename(old_path, new_path)
+        .await
+        .map_err(|error| AppError::Sftp(error.to_string()))
+}
+
 pub async fn canonicalize(session: &SftpSession, path: &str) -> AppResult<String> {
     session
         .canonicalize(path)
