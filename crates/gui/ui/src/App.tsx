@@ -25,6 +25,7 @@ function App() {
   const [modal, setModal] = useState<ModalState>({ open: false, editing: null });
   const [newConnModalOpen, setNewConnModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [closeRequest, setCloseRequest] = useState<string | null>(null);
   const [passwordPromptProfile, setPasswordPromptProfile] = useState<string | null>(null);
   const [hostKeyPrompt, setHostKeyPrompt] = useState<HostKeyPrompt | null>(null);
   const hostKeyRetryRef = useRef<(() => void) | null>(null);
@@ -206,7 +207,7 @@ function App() {
     }
   }, [prefs.localShell]);
 
-  const closeTab = useCallback((id: string) => {
+  const finalizeCloseTab = useCallback((id: string) => {
     const current = tabsRef.current;
     const index = current.findIndex((tab) => tab.id === id);
     if (index === -1) return;
@@ -224,6 +225,16 @@ function App() {
       return fallback ? fallback.id : null;
     });
   }, []);
+
+  const closeTab = useCallback((id: string) => {
+    const tab = tabsRef.current.find((item) => item.id === id);
+    if (!tab || (tab.kind !== 'terminal' && tab.kind !== 'local')) return;
+    if (tab.connected) {
+      setCloseRequest(id);
+      return;
+    }
+    finalizeCloseTab(id);
+  }, [finalizeCloseTab]);
 
   const reconnect = useCallback(
     async (sessionId: string) => {
@@ -527,6 +538,21 @@ function App() {
             setHostKeyPrompt(null);
             hostKeyRetryRef.current = null;
           }}
+        />
+      )}
+
+      {closeRequest && (
+        <PromptDialog
+          title="¿Cerrar esta sesión?"
+          description="La sesión activa se cerrará y se perderá su estado actual."
+          confirmLabel="Cerrar sesión"
+          danger
+          onConfirm={() => {
+            const id = closeRequest;
+            setCloseRequest(null);
+            finalizeCloseTab(id);
+          }}
+          onCancel={() => setCloseRequest(null)}
         />
       )}
     </div>
