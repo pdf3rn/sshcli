@@ -1,6 +1,20 @@
 # Changelog
 
 
+## [1.3.0] - 2026-09-03
+
+
+### Added
+
+- Sort and duplicate connections
+
+- Validate profile fields before save
+
+- Show connection progress per profile
+
+- Test connection before saving profile
+
+
 ## [1.2.0] - 2026-09-03
 
 
@@ -13,6 +27,11 @@
 - Confirm closing active sessions
 
 - Add terminal clear shortcut
+
+
+### Fixed
+
+- Sync lockfile release version
 
 
 ## [1.1.1] - 2026-09-02
