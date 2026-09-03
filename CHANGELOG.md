@@ -1,6 +1,14 @@
 # Changelog
 
 
+## [1.5.0] - 2026-09-03
+
+
+### Added
+
+- Add persistent light and dark themes
+
+
 ## [1.4.0] - 2026-09-03
 
 
