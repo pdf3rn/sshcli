@@ -17,6 +17,7 @@ pub fn run() {
             commands::list_identity_keys,
             commands::create_profile,
             commands::update_profile,
+            commands::duplicate_profile,
             commands::delete_profile,
             commands::save_profile_secret,
             commands::ssh_trust_host_key,

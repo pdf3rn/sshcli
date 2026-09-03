@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Profile } from './types';
-import { ConnectIcon, EditIcon, MoreVerticalIcon, SftpIcon, StarIcon, TrashIcon, TunnelsIcon } from './icons';
+import { ConnectIcon, EditIcon, MoreVerticalIcon, PlusIcon, SftpIcon, StarIcon, TrashIcon, TunnelsIcon } from './icons';
 
 type Props = {
   profiles: Profile[];
@@ -9,6 +9,7 @@ type Props = {
   onConnect: (name: string) => void;
   onOpenPanel: (kind: 'sftp' | 'tunnels', name: string) => void;
   onEdit: (profile: Profile) => void;
+  onDuplicate: (profile: Profile) => void;
   onDelete: (name: string) => void;
   onToggleFavorite: (name: string) => void;
   onCreate: () => void;
@@ -47,12 +48,14 @@ export default function ConnectionsView({
   onConnect,
   onOpenPanel,
   onEdit,
+  onDuplicate,
   onDelete,
   onToggleFavorite,
   onCreate,
 }: Props) {
   const [query, setQuery] = useState('');
   const [activeGroup, setActiveGroup] = useState<string>('__all__');
+  const [sortBy, setSortBy] = useState<'favorite' | 'name' | 'lastUsed'>('favorite');
   const [openMenu, setOpenMenu] = useState<{
     name: string;
     x: number;
@@ -116,8 +119,12 @@ export default function ConnectionsView({
 
   const ordered = useMemo(
     () =>
-      [...filtered].sort((a, b) => Number(b.favorite) - Number(a.favorite)),
-    [filtered],
+      [...filtered].sort((a, b) => {
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        if (sortBy === 'lastUsed') return (b.last_used ?? 0) - (a.last_used ?? 0) || a.name.localeCompare(b.name);
+        return Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name);
+      }),
+    [filtered, sortBy],
   );
 
   const groupItems = [
@@ -148,7 +155,7 @@ export default function ConnectionsView({
           <h2 id="connections-title">Conexiones</h2>
           <p className="muted">Gestiona y organiza tus hosts SSH.</p>
         </div>
-        <div className="view-header-actions">
+          <div className="view-header-actions">
           <input
             type="search"
             className="search-input"
@@ -156,8 +163,18 @@ export default function ConnectionsView({
             aria-label="Buscar conexiones"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-          />
-          <button type="button" className="btn primary" onClick={onCreate}>
+            />
+            <select
+              className="search-input"
+              aria-label="Ordenar conexiones"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+            >
+              <option value="favorite">Favoritos primero</option>
+              <option value="name">Nombre</option>
+              <option value="lastUsed">Última conexión</option>
+            </select>
+            <button type="button" className="btn primary" onClick={onCreate}>
             Nueva conexión
           </button>
         </div>
@@ -337,6 +354,10 @@ export default function ConnectionsView({
           <button type="button" role="menuitem" onClick={() => closeMenuThen(() => onEdit(menuProfile))}>
             <EditIcon size={14} />
             Editar
+          </button>
+          <button type="button" role="menuitem" onClick={() => closeMenuThen(() => onDuplicate(menuProfile))}>
+            <PlusIcon size={14} />
+            Duplicar
           </button>
           <button type="button" role="menuitem" className="danger" onClick={() => closeMenuThen(() => onDelete(menuProfile.name))}>
             <TrashIcon size={14} />

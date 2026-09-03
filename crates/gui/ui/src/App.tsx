@@ -25,6 +25,7 @@ function App() {
   const [modal, setModal] = useState<ModalState>({ open: false, editing: null });
   const [newConnModalOpen, setNewConnModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [duplicateRequest, setDuplicateRequest] = useState<Profile | null>(null);
   const [closeRequest, setCloseRequest] = useState<string | null>(null);
   const [passwordPromptProfile, setPasswordPromptProfile] = useState<string | null>(null);
   const [hostKeyPrompt, setHostKeyPrompt] = useState<HostKeyPrompt | null>(null);
@@ -394,6 +395,7 @@ function App() {
             onConnect={(name) => void connect(name)}
             onOpenPanel={openPanel}
             onEdit={openEdit}
+            onDuplicate={setDuplicateRequest}
             onDelete={handleDelete}
             onToggleFavorite={(name) => {
               void invoke<boolean>('toggle_favorite', { name })
@@ -553,6 +555,25 @@ function App() {
             finalizeCloseTab(id);
           }}
           onCancel={() => setCloseRequest(null)}
+        />
+      )}
+
+      {duplicateRequest && (
+        <PromptDialog
+          title={`Duplicar ${duplicateRequest.name}`}
+          description="Se copiarán la configuración y las credenciales guardadas."
+          label="Nombre del nuevo perfil"
+          initialValue={`${duplicateRequest.name} copia`}
+          confirmLabel="Duplicar"
+          requireValue
+          onConfirm={(name) => {
+            const sourceName = duplicateRequest.name;
+            setDuplicateRequest(null);
+            void invoke('duplicate_profile', { sourceName, name })
+              .then(() => refresh())
+              .catch((reason) => setError(String(reason)));
+          }}
+          onCancel={() => setDuplicateRequest(null)}
         />
       )}
     </div>

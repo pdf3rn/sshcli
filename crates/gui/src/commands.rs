@@ -136,6 +136,30 @@ pub fn update_profile(input: ProfileInput) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn duplicate_profile(source_name: String, name: String) -> Result<(), String> {
+    let store = ProfileStore::new();
+    let profiles = store.load().map_err(|error| error.to_string())?;
+    if profiles.iter().any(|profile| profile.name == name) {
+        return Err(format!("profile already exists: {name}"));
+    }
+    let source = profiles
+        .iter()
+        .find(|profile| profile.name == source_name)
+        .cloned()
+        .ok_or_else(|| format!("profile not found: {source_name}"))?;
+    let mut duplicate = source.clone();
+    duplicate.name = name.clone();
+    duplicate.last_used = None;
+    if let Some(secret) = credentials::get_optional(&source_name).map_err(|error| error.to_string())? {
+        credentials::set_verified(&name, &secret).map_err(|error| error.to_string())?;
+    }
+    store.add(duplicate).map_err(|error| {
+        let _ = credentials::delete(&name);
+        error.to_string()
+    })
+}
+
+#[tauri::command]
 pub fn delete_profile(name: String) -> Result<(), String> {
     let store = ProfileStore::new();
     store.remove(&name).map_err(|error| error.to_string())?;
