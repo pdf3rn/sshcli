@@ -33,6 +33,7 @@ function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [connectingProfile, setConnectingProfile] = useState<string | null>(null);
   const [tabCwds, setTabCwds] = useState<Record<string, string>>({});
 
   const rememberCwd = useCallback((sessionId: string, path: string) => {
@@ -108,6 +109,7 @@ function App() {
     if (connectingRef.current) return;
     connectingRef.current = true;
     setConnecting(true);
+    setConnectingProfile(profileName);
     try {
       const id = await invoke<string>('ssh_connect', {
         profileName,
@@ -141,6 +143,7 @@ function App() {
     } finally {
       connectingRef.current = false;
       setConnecting(false);
+      setConnectingProfile(null);
     }
   }, []);
 
@@ -392,6 +395,7 @@ function App() {
             profiles={profiles}
             liveProfiles={liveProfileNames}
             connecting={connecting}
+            connectingProfile={connectingProfile}
             onConnect={(name) => void connect(name)}
             onOpenPanel={openPanel}
             onEdit={openEdit}

@@ -6,6 +6,7 @@ type Props = {
   profiles: Profile[];
   liveProfiles: ReadonlySet<string>;
   connecting: boolean;
+  connectingProfile: string | null;
   onConnect: (name: string) => void;
   onOpenPanel: (kind: 'sftp' | 'tunnels', name: string) => void;
   onEdit: (profile: Profile) => void;
@@ -45,6 +46,7 @@ export default function ConnectionsView({
   profiles,
   liveProfiles,
   connecting,
+  connectingProfile,
   onConnect,
   onOpenPanel,
   onEdit,
@@ -229,6 +231,7 @@ export default function ConnectionsView({
               <tbody>
                 {ordered.map((profile) => {
                   const live = liveProfiles.has(profile.name);
+                  const isConnecting = connectingProfile === profile.name;
                   return (
                     <tr
                       key={profile.name}
@@ -238,9 +241,9 @@ export default function ConnectionsView({
                     >
                       <td className="col-status">
                         <span
-                          className={`status-dot ${live ? 'ok pulse' : ''}`}
+                          className={`status-dot ${live ? 'ok pulse' : isConnecting ? 'connecting' : ''}`}
                           role="img"
-                          aria-label={live ? 'Sesión activa' : 'Inactivo'}
+                          aria-label={live ? 'Sesión activa' : isConnecting ? 'Conectando' : 'Inactivo'}
                         />
                       </td>
                       <td className="cell-name">

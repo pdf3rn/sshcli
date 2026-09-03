@@ -636,6 +636,11 @@ h3 {
   animation: pulse-dot 2s infinite;
 }
 
+.status-dot.connecting {
+  background: var(--warning, #ffd166);
+  animation: pulse-dot 1s infinite;
+}
+
 @keyframes pulse-dot {
   0%,
   100% {
