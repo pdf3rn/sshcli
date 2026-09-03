@@ -174,6 +174,10 @@ export default function SettingsView({ prefs, onChange }: Props) {
               <span>Copiar selección de terminal</span>
               <kbd>Ctrl/Cmd + Shift + C</kbd>
             </div>
+            <div className="shortcut-row">
+              <span>Limpiar terminal</span>
+              <kbd>Ctrl/Cmd + Shift + K</kbd>
+            </div>
           </div>
         </Section>
 

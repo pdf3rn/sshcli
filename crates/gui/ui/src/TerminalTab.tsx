@@ -238,6 +238,11 @@ export default function TerminalTab({
         return;
       }
       const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'k') {
+        event.preventDefault();
+        term.clear();
+        return;
+      }
       const copyShortcut =
         ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'c') ||
         (event.metaKey && !event.ctrlKey && !event.shiftKey && key === 'c');
