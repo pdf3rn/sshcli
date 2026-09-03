@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [1.4.0] - 2026-09-03
+
+
+### Added
+
+- Add sftp rename and multi-select transfers
+
+
+### Fixed
+
+- Sync lockfile version after v1.3.0
+
+
 ## [1.3.0] - 2026-09-03
 
 
