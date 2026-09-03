@@ -30,6 +30,9 @@ function formatLastUsed(secs: number | null): string {
   return days === 1 ? 'Hace 1 día' : `Hace ${days} días`;
 }
 
+const CONTEXT_MENU_WIDTH = 160;
+const CONTEXT_MENU_HEIGHT = 156;
+
 function tagClass(tag: string): string {
   const normalized = tag.toLowerCase();
   if (normalized.includes('prod')) return 'tag-chip tag-danger';
@@ -50,7 +53,13 @@ export default function ConnectionsView({
 }: Props) {
   const [query, setQuery] = useState('');
   const [activeGroup, setActiveGroup] = useState<string>('__all__');
-  const [openMenu, setOpenMenu] = useState<{ name: string; x: number; y: number; alignUp: boolean } | null>(null);
+  const [openMenu, setOpenMenu] = useState<{
+    name: string;
+    x: number;
+    y: number;
+    alignUp: boolean;
+    fromCursor: boolean;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -123,6 +132,13 @@ export default function ConnectionsView({
   const closeMenuThen = (action: () => void) => {
     setOpenMenu(null);
     action();
+  };
+
+  const openContextMenu = (event: React.MouseEvent, name: string) => {
+    event.preventDefault();
+    const x = Math.min(event.clientX, window.innerWidth - CONTEXT_MENU_WIDTH - 8);
+    const alignUp = window.innerHeight - event.clientY < CONTEXT_MENU_HEIGHT;
+    setOpenMenu({ name, x, y: event.clientY, alignUp, fromCursor: true });
   };
 
   return (
@@ -201,6 +217,7 @@ export default function ConnectionsView({
                       key={profile.name}
                       className={live ? 'row-live' : ''}
                       onDoubleClick={() => onConnect(profile.name)}
+                      onContextMenu={(event) => openContextMenu(event, profile.name)}
                     >
                       <td className="col-status">
                         <span
@@ -278,6 +295,7 @@ export default function ConnectionsView({
                                       x: rect.right,
                                       y: rect.bottom + 6,
                                       alignUp: window.innerHeight - rect.bottom < menuHeight,
+                                      fromCursor: false,
                                     },
                               );
                             }}
@@ -297,11 +315,15 @@ export default function ConnectionsView({
       {menuProfile && openMenu && (
         <div
           ref={menuRef}
-          className="connection-action-menu"
+          className={`connection-action-menu ${openMenu.fromCursor ? 'connection-action-menu--cursor' : ''}`}
           role="menu"
           style={{
             left: openMenu.x,
-            top: openMenu.alignUp ? openMenu.y - 158 : openMenu.y,
+            top: openMenu.alignUp
+              ? openMenu.y - (openMenu.fromCursor ? CONTEXT_MENU_HEIGHT + 6 : 158)
+              : openMenu.fromCursor
+                ? openMenu.y + 6
+                : openMenu.y,
           }}
         >
           <button type="button" role="menuitem" onClick={() => closeMenuThen(() => onOpenPanel('sftp', menuProfile.name))}>

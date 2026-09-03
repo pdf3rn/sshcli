@@ -235,6 +235,18 @@ export default function TerminalTab({
         event.preventDefault();
         setSearchOpen(true);
         requestAnimationFrame(() => searchInputRef.current?.focus());
+        return;
+      }
+      const key = event.key.toLowerCase();
+      const copyShortcut =
+        ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'c') ||
+        (event.metaKey && !event.ctrlKey && !event.shiftKey && key === 'c');
+      if (copyShortcut) {
+        const selection = term.getSelection();
+        if (selection) {
+          event.preventDefault();
+          navigator.clipboard.writeText(selection).catch(() => undefined);
+        }
       }
     };
     containerRef.current?.addEventListener('keydown', onKeyDown);

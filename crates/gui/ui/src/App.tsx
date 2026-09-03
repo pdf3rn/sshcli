@@ -43,6 +43,14 @@ function App() {
   tabsRef.current = tabs;
   const activeRef = useRef<string | null>(null);
   activeRef.current = activeTabId;
+
+  useEffect(() => {
+    const preventNativeMenu = (event: MouseEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('contextmenu', preventNativeMenu, { capture: true });
+    return () => window.removeEventListener('contextmenu', preventNativeMenu, true);
+  }, []);
   const dockviewActionsRef = useRef<DockviewActions | null>(null);
   const [dockviewReady, setDockviewReady] = useState(false);
   const [splitActive, setSplitActive] = useState(false);

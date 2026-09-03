@@ -599,6 +599,10 @@ h3 {
   transform: none;
 }
 
+.connection-action-menu--cursor {
+  transform: none;
+}
+
 .connection-action-menu button {
   width: 100%;
   display: flex;
