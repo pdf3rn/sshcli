@@ -28,6 +28,7 @@ export default function ProfileModal({ editing, knownGroups, existingNames, onCl
   const [secret, setSecret] = useState('');
   const [keys, setKeys] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
   const dialogRef = useDialog<HTMLDivElement>(onClose);
 
   useEffect(() => {
@@ -48,28 +49,30 @@ export default function ProfileModal({ editing, knownGroups, existingNames, onCl
       : null,
   ].filter((message): message is string => message !== null);
 
+  const buildInput = () => ({
+    original_name: editing?.name ?? null,
+    name: name.trim(),
+    host: host.trim(),
+    port: Number(port),
+    username: username.trim(),
+    identity_file: auth === 'private-key' ? identityFile.trim() || null : null,
+    authentication: auth,
+    accept_unknown_host_key: acceptHostKey,
+    group: group.trim() || null,
+    tags: tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean),
+    secret: needsSecret ? secret : null,
+  });
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (validationErrors.length > 0) {
       setError(validationErrors[0]);
       return;
     }
-    const payload = {
-      original_name: editing?.name ?? null,
-      name: name.trim(),
-      host: host.trim(),
-      port: Number(port),
-      username: username.trim(),
-      identity_file: auth === 'private-key' ? identityFile.trim() || null : null,
-      authentication: auth,
-      accept_unknown_host_key: acceptHostKey,
-      group: group.trim() || null,
-      tags: tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      secret: needsSecret ? secret : null,
-    };
+    const payload = buildInput();
     try {
       if (editing) {
         await invoke('update_profile', { input: payload });
@@ -79,6 +82,23 @@ export default function ProfileModal({ editing, knownGroups, existingNames, onCl
       onSaved();
     } catch (reason) {
       setError(String(reason));
+    }
+  };
+
+  const testConnection = async () => {
+    setError(null);
+    if (validationErrors.length > 0) {
+      setError(validationErrors[0]);
+      return;
+    }
+    setTesting(true);
+    try {
+      await invoke('test_profile', { input: buildInput() });
+      setError('Conexión correcta.');
+    } catch (reason) {
+      setError(`No se pudo conectar: ${String(reason)}`);
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -224,6 +244,9 @@ export default function ProfileModal({ editing, knownGroups, existingNames, onCl
           <div className="modal-actions">
             <button type="button" className="btn ghost" onClick={onClose}>
               Cancelar
+            </button>
+            <button type="button" className="btn" onClick={() => void testConnection()} disabled={testing}>
+              {testing ? 'Probando…' : 'Probar conexión'}
             </button>
             <button type="submit" className="btn primary">
               Guardar

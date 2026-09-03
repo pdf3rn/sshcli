@@ -47,7 +47,7 @@ impl ProfileInput {
         }
     }
 
-    fn into_profile(self) -> Result<(CoreProfile, Option<String>), String> {
+    pub(crate) fn into_profile(self) -> Result<(CoreProfile, Option<String>), String> {
         let authentication = self.authentication()?;
         let identity_file = self.identity_file;
         if matches!(authentication, Authentication::PrivateKey) && identity_file.is_none() {
@@ -70,6 +70,17 @@ impl ProfileInput {
             self.secret,
         ))
     }
+}
+
+#[tauri::command]
+pub async fn test_profile(input: ProfileInput) -> Result<(), String> {
+    let (profile, secret) = input.into_profile()?;
+    let options = sshcli_core::ssh::options_for_profile(&profile, secret)
+        .map_err(|error| error.to_string())?;
+    let (channel, _handle) = sshcli_core::ssh::open_shell(options, 80, 24)
+        .await
+        .map_err(|error| error.to_string())?;
+    channel.close().await.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
