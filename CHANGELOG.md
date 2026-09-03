@@ -1,6 +1,20 @@
 # Changelog
 
 
+## [1.2.0] - 2026-09-03
+
+
+### Added
+
+- Custom context menu in connections and terminal copy shortcut
+
+- Add keyboard shortcut reference
+
+- Confirm closing active sessions
+
+- Add terminal clear shortcut
+
+
 ## [1.1.1] - 2026-09-02
 
 
