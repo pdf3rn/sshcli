@@ -1,12 +1,25 @@
 # Changelog
 
 
+## [1.6.0] - 2026-09-03
+
+
+### Added
+
+- Improve keyboard accessibility for connection actions
+
+
 ## [1.5.0] - 2026-09-03
 
 
 ### Added
 
 - Add persistent light and dark themes
+
+
+### Fixed
+
+- Sync lockfile version after v1.5.0
 
 
 ## [1.4.0] - 2026-09-03
