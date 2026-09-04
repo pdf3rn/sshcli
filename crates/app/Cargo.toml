@@ -1,12 +1,9 @@
 [package]
-name = "sshcli-gui"
+name = "sshcli-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Cross-platform desktop GUI for sshcli"
-
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
+description = "UI-framework-agnostic application services for sshcli"
 
 [dependencies]
 base64 = "0.22"
@@ -15,7 +12,6 @@ russh.workspace = true
 russh-sftp.workspace = true
 serde.workspace = true
 serde_json = "1"
+thiserror.workspace = true
 sshcli-core = { path = "../core" }
-sshcli-app = { path = "../app" }
-tauri = { version = "2", features = [] }
 tokio.workspace = true

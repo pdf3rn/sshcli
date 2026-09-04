@@ -1,4 +1,5 @@
 mod commands;
+mod events;
 mod local_shell;
 mod session;
 mod sftp_session;
@@ -7,11 +8,11 @@ mod tunnel;
 
 pub fn run() {
     tauri::Builder::default()
-        .manage(session::init_state())
-        .manage(sftp_session::init_state())
-        .manage(local_shell::init_state())
-        .manage(tunnel::init_state())
-        .manage(telemetry::init_state())
+        .manage(sshcli_app::session_init())
+        .manage(sshcli_app::sftp_init())
+        .manage(sshcli_app::local_shell_init())
+        .manage(sshcli_app::tunnel_init())
+        .manage(sshcli_app::telemetry_init())
         .invoke_handler(tauri::generate_handler![
             commands::list_profiles,
             commands::list_identity_keys,

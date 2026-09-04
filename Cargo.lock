@@ -4424,6 +4424,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sshcli-app"
+version = "1.6.0"
+dependencies = [
+ "base64 0.22.1",
+ "portable-pty",
+ "russh",
+ "russh-sftp",
+ "serde",
+ "serde_json",
+ "sshcli-core",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
 name = "sshcli-core"
 version = "1.6.0"
 dependencies = [
@@ -4448,6 +4463,7 @@ dependencies = [
  "russh-sftp",
  "serde",
  "serde_json",
+ "sshcli-app",
  "sshcli-core",
  "tauri",
  "tauri-build",
