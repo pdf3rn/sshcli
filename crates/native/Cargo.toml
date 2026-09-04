@@ -1,0 +1,25 @@
+[package]
+name = "sshcli-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Native egui terminal frontend for sshcli (eframe + alacritty_terminal + portable-pty)"
+
+[dependencies]
+# Native GUI stack. Independent from Tauri/WebView by design.
+eframe = "0.31"
+egui = "0.31"
+egui_dock = "0.16"
+# Terminal engine (Option B: direct alacritty_terminal, see README for rationale).
+alacritty_terminal = "0.25.1"
+# PTY owned by this crate (spawn/read-loop/resize/exit detection).
+portable-pty.workspace = true
+# Shell discovery logic shared with the rest of the workspace.
+sshcli-core = { path = "../core" }
+directories.workspace = true
+# Logging for the native binary.
+env_logger = "0.11"
+log = "0.4"
+
+[dev-dependencies]
+portable-pty.workspace = true
