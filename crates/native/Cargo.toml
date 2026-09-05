@@ -14,6 +14,10 @@ egui_dock = "0.16"
 alacritty_terminal = "0.25.1"
 # PTY owned by this crate (spawn/read-loop/resize/exit detection).
 portable-pty.workspace = true
+# SSH channel transport: russh + a dedicated tokio runtime.
+russh.workspace = true
+tokio.workspace = true
+serde_json = "1"
 # Shell discovery logic shared with the rest of the workspace.
 sshcli-core = { path = "../core" }
 directories.workspace = true

@@ -22,21 +22,27 @@
 //!
 //! ## Module map
 //!
+//! * [`transport`] — the [`transport::SessionTransport`] abstraction (local PTY or SSH).
 //! * [`session`] — the local PTY session (spawn, read loop, resize, closed/restart).
+//! * [`ssh`] — the SSH channel transport (connect, read loop, resize, close/reconnect).
 //! * [`term`] — the emulator model wrapped around `alacritty_terminal::Term`.
 //! * [`color`] — ANSI 16/256/truecolor → `egui::Color32` mapping.
 //! * [`render`] — painting the grid (cells, cursor, selection, scrollback).
 //! * [`widget`] — the embeddable [`widget::TerminalSession`] widget.
 //! * [`app`] — the `eframe` application tying it together (with `egui_dock`).
 //!
-//! The binary target (`src/main.rs`) launches a single dockable terminal tab.
+//! The binary target (`src/main.rs`) launches a dockable window with a mix of
+//! local and SSH terminal tabs.
 
 pub mod app;
 pub mod color;
 pub mod render;
 pub mod session;
+pub mod ssh;
 pub mod term;
+pub mod transport;
 pub mod widget;
 
 pub use app::NativeApp;
+pub use transport::{NullTransport, SessionTransport, SharedNullTransport};
 pub use widget::TerminalSession;

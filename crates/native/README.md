@@ -34,11 +34,13 @@ kept under unit test for the deterministic parts.
 
 ```
 src/
-  main.rs     — binary: eframe::run_native, one dockable terminal tab
+  main.rs     — binary: eframe::run_native, dockable terminal tabs
   lib.rs      — re-exports + crate docs
   app.rs      — NativeApp (eframe::App) + egui_dock TabViewer + shortcuts()
-  widget.rs   — TerminalSession: PTY session + emulator + input/render/search
+  widget.rs   — TerminalSession: transport + emulator + input/render/search
   session.rs  — PtySession: spawn/read-loop/resize/write/closed/restart
+  ssh.rs      — SshTransport: russh channel + connect/resolve/error-mapping
+  transport.rs— SessionTransport trait + NullTransport mock
   term.rs     — TermModel: alacritty_terminal::Term + VTE Processor wrapper
   render.rs   — grid → egui shapes (cells, cursor, selection, scrollback)
   color.rs    — ANSI 16/256/truecolor → egui::Color32
@@ -61,8 +63,16 @@ src/
 7. **Search** — Ctrl+Shift+F opens the search bar; Find-next wraps forward.
 8. **Clear** — Ctrl+L clears screen; scrollback cleared via emulator API.
 9. **Shortcuts** — see `app::shortcuts()` and the About tab (also below).
-10. **Closed / reconnect** — when the PTY exits, a "Session closed" overlay is
-   shown with a restart action (press `R`); `PtySession::restart` respawns.
+10. **Closed / reconnect** — when the PTY (or SSH channel) exits, a "Session closed" overlay is
+   shown with a restart action (press `R`); `PtySession::restart` respawns, and
+   `SshTransport::restart` re-runs the connection.
+11. **SSH sessions** — a "New SSH connection" form (profile name or
+    `user@host[:port]` ad-hoc target + optional password) opens an SSH shell in
+    a new tab, rendered by the same widget as a local shell via the shared
+    [`SessionTransport`] interface.
+12. **Docking** — `egui_dock` supports multiple concurrent tabs (local + SSH),
+    drag-to-split, per-tab close with confirmation, and "(closed)" title
+    suffixes once a session exits.
 
 ### Keyboard shortcuts
 

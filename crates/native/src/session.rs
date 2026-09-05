@@ -24,6 +24,8 @@ use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, Pt
 
 use sshcli_core::shells;
 
+use crate::transport::SessionTransport;
+
 /// The default terminal environment variables advertised to the shell.
 pub const DEFAULT_TERM: &str = "xterm-256color";
 
@@ -275,6 +277,44 @@ impl PtySession {
             self.state = SessionState::Closed;
             on_closed();
         }
+    }
+}
+
+impl SessionTransport for PtySession {
+    fn write(&self, bytes: &[u8]) -> Result<(), String> {
+        PtySession::write(self, bytes)
+    }
+
+    fn resize(&self, cols: u16, rows: u16) -> Result<(), String> {
+        PtySession::resize(
+            self,
+            PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            },
+        )
+    }
+
+    fn try_recv(&self) -> Option<SessionEvent> {
+        PtySession::try_recv(self)
+    }
+
+    fn state(&self) -> SessionState {
+        PtySession::state(self)
+    }
+
+    fn close(&mut self) {
+        PtySession::kill(self);
+    }
+
+    fn restart(&mut self) -> Result<(), String> {
+        PtySession::restart(self)
+    }
+
+    fn is_remote(&self) -> bool {
+        false
     }
 }
 

@@ -1,13 +1,13 @@
-//! The reusable terminal widget + PTY-backed session.
+//! The reusable terminal widget, driven by a [`SessionTransport`].
 //!
-//! [`TerminalSession`] ties together a [`PtySession`] (owns the real local PTY
-//! and its read loop) and a [`TermModel`] (the alacritty emulator state). It is
-//! the unit later steps will embed per-tab and, eventually, rewire to an SSH
-//! channel instead of a local PTY.
+//! [`TerminalSession`] ties together a [`SessionTransport`] (a local PTY or an
+//! SSH channel, both behind one interface) and a [`TermModel`] (the alacritty
+//! emulator state). The transport is what makes a local shell and a remote SSH
+//! shell render identically: the widget never knows which wire is underneath.
 //!
 //! `show()` renders the grid and handles all input: keyboard, special keys,
 //! selection + clipboard, scrolling, search, clear actions, and resize. The
-//! PTY write path and the emulator grid are fully owned here (no magic).
+//! transport write path and the emulator grid are fully owned here (no magic).
 
 use egui::{text::LayoutJob, Align2, Color32, FontId, Key, Modifiers, Pos2, Sense, Vec2};
 
@@ -15,14 +15,16 @@ use crate::{
     render::{cell_at_position, render},
     session::{PtySession, SessionConfig, SessionState},
     term::TermModel,
+    transport::SessionTransport,
 };
 
 /// Default terminal font size in points.
 const DEFAULT_POINT_SIZE: f32 = 14.0;
 
-/// A single terminal: a local PTY session plus its emulator grid and UI state.
+/// A single terminal: a transport (local PTY or SSH) plus its emulator grid
+/// and UI state.
 pub struct TerminalSession {
-    session: PtySession,
+    session: Box<dyn SessionTransport>,
     model: TermModel,
     font: FontId,
     // Search UI state.
@@ -40,15 +42,26 @@ pub struct TerminalSession {
 impl TerminalSession {
     /// Create a new session using the detected local shell and a default size.
     pub fn new() -> Self {
+        Self::new_local()
+    }
+
+    /// Create a new session backed by the detected local shell.
+    pub fn new_local() -> Self {
         let config = SessionConfig::default();
         let session = PtySession::start(config).unwrap_or_else(|e| {
             log::error!("failed to start local shell: {e}");
             PtySession::start(SessionConfig::default()).expect("retry shell spawn")
         });
-        let model = TermModel::new(80, 24);
+        Self::with_transport(Box::new(session))
+    }
+
+    /// Create a session from an arbitrary transport (an SSH channel, or a mock
+    /// in tests). This is the seam that lets local and remote shells share one
+    /// code path.
+    pub fn with_transport(session: Box<dyn SessionTransport>) -> Self {
         Self {
             session,
-            model,
+            model: TermModel::new(80, 24),
             font: FontId::monospace(DEFAULT_POINT_SIZE),
             search_open: false,
             search_query: String::new(),
@@ -56,6 +69,44 @@ impl TerminalSession {
             have_selection: false,
             scroll_pixels: 0.0,
             cell_size: Vec2::new(8.0, 16.0),
+        }
+    }
+
+    /// The session's lifecycle state (Running/Closed).
+    pub fn state(&self) -> SessionState {
+        self.session.state()
+    }
+
+    /// Whether the underlying transport is remote (SSH).
+    pub fn is_remote(&self) -> bool {
+        self.session.is_remote()
+    }
+
+    /// Forward raw bytes to the transport (user keyboard input).
+    ///
+    /// Exposed so the app/tests can drive the session without the full egui
+    /// input pipeline; `show()` routes keyboard/text/paste through here too.
+    pub fn write_input(&self, bytes: &[u8]) {
+        let _ = self.session.write(bytes);
+    }
+
+    /// Close the underlying transport (kill PTY / close SSH channel).
+    pub fn close(&mut self) {
+        self.session.close();
+    }
+
+    /// Reconnect/restart the underlying transport.
+    pub fn reconnect(&mut self) {
+        let _ = self.session.restart();
+    }
+
+    /// Resize the emulator grid + transport only when the dimensions changed.
+    ///
+    /// Extracted from `show()` so it can be unit-tested without an `egui::Ui`.
+    pub fn resize_if_needed(&mut self, cols: usize, rows: usize) {
+        if cols != self.model.columns() || rows != self.model.screen_lines() {
+            self.model.resize(cols, rows);
+            let _ = self.session.resize(cols as u16, rows as u16);
         }
     }
 
@@ -84,21 +135,13 @@ impl TerminalSession {
         let (response, painter) = ui.allocate_painter(available, Sense::click_and_drag());
         let origin = response.rect.min;
 
-        // 2. Resize detection: propagate to PTY + emulator when the cell grid
-        //    dimensions actually change.
+        // 2. Resize detection: propagate to transport + emulator when the cell
+        //    grid dimensions actually change.
         self.cell_size =
             ui.fonts(|f| Vec2::new(f.glyph_width(&self.font, 'M'), f.row_height(&self.font)));
         let cols = (available.x / self.cell_size.x).floor().max(1.0) as usize;
         let rows = (available.y / self.cell_size.y).floor().max(1.0) as usize;
-        if cols != self.model.columns() || rows != self.model.screen_lines() {
-            self.model.resize(cols, rows);
-            let _ = self.session.resize(portable_pty::PtySize {
-                rows: rows as u16,
-                cols: cols as u16,
-                pixel_width: 0,
-                pixel_height: 0,
-            });
-        }
+        self.resize_if_needed(cols, rows);
 
         // 3. Handle input events.
         self.handle_input(ui, &response, origin);
@@ -135,7 +178,7 @@ impl TerminalSession {
             match event {
                 egui::Event::Text(text) => {
                     if focused {
-                        let _ = self.session.write(text.as_bytes());
+                        self.write_input(text.as_bytes());
                     }
                 }
                 egui::Event::Key {
@@ -153,12 +196,12 @@ impl TerminalSession {
                     if self.have_selection {
                         self.copy_selection(ui);
                     } else if focused {
-                        let _ = self.session.write(&[0x03]);
+                        self.write_input(&[0x03]);
                     }
                 }
                 egui::Event::Paste(text) => {
                     if focused {
-                        let _ = self.session.write(text.as_bytes());
+                        self.write_input(text.as_bytes());
                     }
                 }
                 egui::Event::PointerButton {
@@ -233,13 +276,13 @@ impl TerminalSession {
             match key {
                 K::L => {
                     // Clear screen: ED(2) + cursor home.
-                    let _ = self.session.write(b"\x1b[2J\x1b[H");
+                    self.write_input(b"\x1b[2J\x1b[H");
                     self.model.send_ansi(b"\x1b[2J\x1b[H");
                     return;
                 }
                 K::C => {
                     // SIGINT (already handled by Copy event fallback too).
-                    let _ = self.session.write(&[0x03]);
+                    self.write_input(&[0x03]);
                     return;
                 }
                 _ => {}
@@ -277,7 +320,7 @@ impl TerminalSession {
         };
 
         if let Some(seq) = seq {
-            let _ = self.session.write(seq);
+            self.write_input(seq);
         }
     }
 
@@ -345,7 +388,7 @@ impl TerminalSession {
                 Color32::LIGHT_GRAY,
             );
             if ui.input(|i| i.key_pressed(Key::R)) {
-                let _ = self.session.restart();
+                self.reconnect();
             }
         }
     }
@@ -417,4 +460,96 @@ pub fn cell_layout_job(line: &str, color: Color32, font: FontId) -> LayoutJob {
         },
     );
     job
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transport::{NullTransport, SharedNullTransport};
+
+    /// A transport that records everything and replays a scripted output.
+    fn recording_transport() -> SharedNullTransport {
+        SharedNullTransport::new(NullTransport::new())
+    }
+
+    #[test]
+    fn write_input_forwards_bytes_to_transport() {
+        let transport = recording_transport();
+        let session = TerminalSession::with_transport(Box::new(transport.clone()));
+        session.write_input(b"ls -la\r");
+        transport.with(|t| assert_eq!(t.written, b"ls -la\r"));
+    }
+
+    #[test]
+    fn resize_maps_to_transport_cols_rows() {
+        let transport = recording_transport();
+        let mut session = TerminalSession::with_transport(Box::new(transport.clone()));
+        session.resize_if_needed(120, 40);
+        transport.with(|t| {
+            assert_eq!(t.resizes, vec![(120, 40)]);
+        });
+        // Resizing to the same size does not re-emit.
+        session.resize_if_needed(120, 40);
+        transport.with(|t| assert_eq!(t.resizes.len(), 1));
+    }
+
+    #[test]
+    fn pump_feeds_output_into_emulator() {
+        let transport = recording_transport();
+        transport.with(|t| t.push_output(b"hello from transport"));
+        let mut session = TerminalSession::with_transport(Box::new(transport));
+        let closed = session.pump();
+        assert!(!closed, "should not report closed");
+
+        // The emulator's first line should now contain the fed text.
+        let grid = session.model.grid();
+        let line = &grid[alacritty_terminal::index::Line(0)];
+        let rendered: String = (0..session.model.columns())
+            .map(|c| line[alacritty_terminal::index::Column(c)].c)
+            .collect();
+        assert!(
+            rendered.starts_with("hello from transport"),
+            "rendered: {rendered:?}"
+        );
+    }
+
+    #[test]
+    fn pump_reports_closed_event() {
+        let transport = recording_transport();
+        transport.with(|t| t.events.push_back(crate::session::SessionEvent::Closed));
+        let mut session = TerminalSession::with_transport(Box::new(transport));
+        assert!(session.pump(), "should report a closed transition");
+    }
+
+    #[test]
+    fn close_forwards_to_transport() {
+        let transport = recording_transport();
+        let mut session = TerminalSession::with_transport(Box::new(transport.clone()));
+        session.close();
+        transport.with(|t| {
+            assert_eq!(t.close_count, 1);
+            assert_eq!(t.state, SessionState::Closed);
+        });
+    }
+
+    #[test]
+    fn reconnect_forwards_to_transport() {
+        let transport = recording_transport();
+        transport.with(|t| t.state = SessionState::Closed);
+        let mut session = TerminalSession::with_transport(Box::new(transport.clone()));
+        session.reconnect();
+        transport.with(|t| {
+            assert_eq!(t.restart_count, 1);
+            assert_eq!(t.state, SessionState::Running);
+        });
+    }
+
+    #[test]
+    fn remote_transport_reports_is_remote() {
+        // A NullTransport is local by default; assert the widget passes through
+        // the transport's own flag.
+        let transport = recording_transport();
+        let session = TerminalSession::with_transport(Box::new(transport));
+        assert!(!session.is_remote());
+    }
 }

@@ -86,6 +86,7 @@ fn host_key_error(handler_rejected: &Arc<Mutex<Option<RejectedHostKey>>>, error:
     AppError::from(error)
 }
 
+#[derive(Clone)]
 pub struct ConnectionOptions {
     pub host: String,
     pub port: u16,
@@ -95,6 +96,7 @@ pub struct ConnectionOptions {
     pub authentication: Authentication,
 }
 
+#[derive(Clone)]
 pub enum Authentication {
     None,
     Password(String),

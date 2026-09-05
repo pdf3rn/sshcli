@@ -6084,7 +6084,10 @@ dependencies = [
  "env_logger",
  "log",
  "portable-pty",
+ "russh",
+ "serde_json",
  "sshcli-core",
+ "tokio",
 ]
 
 [[package]]
