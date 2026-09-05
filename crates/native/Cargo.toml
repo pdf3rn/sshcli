@@ -20,6 +20,8 @@ tokio.workspace = true
 serde_json = "1"
 # Shell discovery logic shared with the rest of the workspace.
 sshcli-core = { path = "../core" }
+# Tauri-free profile management / validation commands (step 1 extraction).
+sshcli-app = { path = "../app" }
 directories.workspace = true
 # Logging for the native binary.
 env_logger = "0.11"

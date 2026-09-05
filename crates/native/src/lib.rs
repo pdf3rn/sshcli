@@ -25,6 +25,8 @@
 //! * [`transport`] — the [`transport::SessionTransport`] abstraction (local PTY or SSH).
 //! * [`session`] — the local PTY session (spawn, read loop, resize, closed/restart).
 //! * [`ssh`] — the SSH channel transport (connect, read loop, resize, close/reconnect).
+//! * [`profiles`] — pure formatting/validation helpers for the profile view.
+//! * [`host_key`] — the host-key confirmation dialog.
 //! * [`term`] — the emulator model wrapped around `alacritty_terminal::Term`.
 //! * [`color`] — ANSI 16/256/truecolor → `egui::Color32` mapping.
 //! * [`render`] — painting the grid (cells, cursor, selection, scrollback).
@@ -36,6 +38,9 @@
 
 pub mod app;
 pub mod color;
+pub mod host_key;
+pub mod profiles;
+pub mod profiles_view;
 pub mod render;
 pub mod session;
 pub mod ssh;

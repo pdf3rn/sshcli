@@ -10,20 +10,25 @@
 use eframe::egui;
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex, TabIndex};
 
+use sshcli_app::commands as app_commands;
+
 use crate::{
+    host_key::{self, HostKeyRequest},
+    profiles_view::{ProfilesAction, ProfilesView},
     session::SessionState,
     ssh::{SshConnect, SshTransport},
     widget::TerminalSession,
 };
 
-/// A single dockable tab: a named terminal session (local or SSH), or the
-/// About page.
+/// A single dockable tab: a named terminal session (local or SSH), the
+/// profiles view, or the About page.
 pub enum Tab {
     Session {
         id: usize,
         label: String,
         session: TerminalSession,
     },
+    Profiles,
     About,
 }
 
@@ -49,7 +54,7 @@ impl Tab {
     fn id(&self) -> Option<usize> {
         match self {
             Tab::Session { id, .. } => Some(*id),
-            Tab::About => None,
+            Tab::Profiles | Tab::About => None,
         }
     }
 
@@ -62,6 +67,7 @@ impl Tab {
                     label.clone()
                 }
             }
+            Tab::Profiles => "Conexiones".to_string(),
             Tab::About => "About".to_string(),
         }
     }
@@ -80,6 +86,13 @@ struct SshForm {
     error: Option<String>,
 }
 
+/// A pending host-key confirmation, together with the connect request to retry
+/// once the user trusts the key.
+struct PendingHostKey {
+    connect: SshConnect,
+    request: HostKeyRequest,
+}
+
 /// The top-level application state.
 pub struct NativeApp {
     dock: DockState<Tab>,
@@ -87,6 +100,8 @@ pub struct NativeApp {
     ssh_form: SshForm,
     /// Tab id awaiting close confirmation.
     pending_close: Option<usize>,
+    profiles: ProfilesView,
+    pending_host_key: Option<PendingHostKey>,
 }
 
 impl NativeApp {
@@ -95,6 +110,7 @@ impl NativeApp {
         let dock = DockState::new(vec![
             Tab::new_local(0, "Terminal"),
             Tab::new_local(1, "Terminal 2"),
+            Tab::Profiles,
             Tab::About,
         ]);
         Self {
@@ -102,6 +118,8 @@ impl NativeApp {
             next_id: 2,
             ssh_form: SshForm::default(),
             pending_close: None,
+            profiles: ProfilesView::default(),
+            pending_host_key: None,
         }
     }
 
@@ -110,6 +128,21 @@ impl NativeApp {
         self.next_id += 1;
         let label = format!("Terminal {}", id + 1);
         self.dock.push_to_focused_leaf(Tab::new_local(id, &label));
+    }
+
+    /// Attempt to connect an SSH transport. On a host-key rejection, stash the
+    /// pending request (to be confirmed by the user) and return `Ok(None)`.
+    fn connect_ssh(&mut self, connect: SshConnect) -> Result<Option<SshTransport>, String> {
+        match SshTransport::connect(&connect, 80, 24) {
+            Ok(transport) => Ok(Some(transport)),
+            Err(e) => match HostKeyRequest::from_error(&e) {
+                Some(request) => {
+                    self.pending_host_key = Some(PendingHostKey { connect, request });
+                    Ok(None)
+                }
+                None => Err(e),
+            },
+        }
     }
 
     fn add_ssh_tab(&mut self) {
@@ -134,8 +167,8 @@ impl NativeApp {
                 password,
             }
         };
-        match SshTransport::connect(&connect, 80, 24) {
-            Ok(transport) => {
+        match self.connect_ssh(connect) {
+            Ok(Some(transport)) => {
                 let id = self.next_id;
                 self.next_id += 1;
                 self.dock.push_to_focused_leaf(Tab::new_ssh(id, transport));
@@ -143,7 +176,64 @@ impl NativeApp {
                 self.ssh_form.target.clear();
                 self.ssh_form.password.clear();
             }
+            Ok(None) => {
+                // Host-key confirmation pending; form kept for retry on trust.
+                self.ssh_form.error = None;
+            }
             Err(e) => self.ssh_form.error = Some(e),
+        }
+    }
+
+    /// Connect to a profile by name (from the profiles view).
+    fn connect_profile(&mut self, name: String) {
+        let connect = SshConnect::Profile {
+            name,
+            password: None,
+        };
+        match self.connect_ssh(connect) {
+            Ok(Some(transport)) => {
+                let id = self.next_id;
+                self.next_id += 1;
+                self.dock.push_to_focused_leaf(Tab::new_ssh(id, transport));
+            }
+            Ok(None) => {}
+            Err(_e) => {
+                // Connection error is surfaced in the profiles view via its
+                // own error path; store nothing here.
+            }
+        }
+    }
+
+    /// Show and handle the host-key confirmation dialog, if pending.
+    fn host_key_dialog(&mut self, ctx: &egui::Context) {
+        let Some(pending) = self.pending_host_key.take() else {
+            return;
+        };
+        match host_key::show(ctx, &pending.request) {
+            host_key::HostKeyDecision::Trust => {
+                if let Err(_) = app_commands::ssh_trust_host_key(
+                    pending.request.host.clone(),
+                    pending.request.port,
+                    pending.request.key.clone(),
+                ) {
+                    // If trusting failed, surface a generic error and abandon.
+                    self.pending_host_key = None;
+                    return;
+                }
+                // Retry the connection now that the key is trusted.
+                match SshTransport::connect(&pending.connect, 80, 24) {
+                    Ok(transport) => {
+                        let id = self.next_id;
+                        self.next_id += 1;
+                        self.dock.push_to_focused_leaf(Tab::new_ssh(id, transport));
+                        self.ssh_form.error = None;
+                    }
+                    Err(e) => self.ssh_form.error = Some(e),
+                }
+            }
+            host_key::HostKeyDecision::Cancel | host_key::HostKeyDecision::Pending => {
+                self.pending_host_key = Some(pending);
+            }
         }
     }
 
@@ -208,6 +298,8 @@ impl NativeApp {
 
 struct AppTabViewer<'a> {
     pending_close: &'a mut Option<usize>,
+    profiles: &'a mut ProfilesView,
+    actions: Vec<ProfilesAction>,
 }
 
 impl egui_dock::TabViewer for AppTabViewer<'_> {
@@ -220,6 +312,7 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
     fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
         match tab {
             Tab::Session { id, .. } => egui::Id::new(("session", *id)),
+            Tab::Profiles => egui::Id::new("profiles"),
             Tab::About => egui::Id::new("about"),
         }
     }
@@ -227,6 +320,10 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         match tab {
             Tab::Session { session, .. } => session.show(ui),
+            Tab::Profiles => {
+                let mut actions = self.profiles.show(ui);
+                self.actions.append(&mut actions);
+            }
             Tab::About => {
                 ui.heading("sshcli-native");
                 ui.label(
@@ -256,7 +353,7 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
                     false
                 }
             }
-            Tab::About => true,
+            Tab::Profiles | Tab::About => true,
         }
     }
 }
@@ -291,6 +388,12 @@ impl eframe::App for NativeApp {
             ui.horizontal(|ui| {
                 if ui.button("New local terminal").clicked() {
                     self.add_local_tab();
+                }
+                if ui.button("Profiles").clicked() {
+                    self.dock.push_to_focused_leaf(Tab::Profiles);
+                }
+                if ui.button("About").clicked() {
+                    self.dock.push_to_focused_leaf(Tab::About);
                 }
             });
         });
@@ -327,12 +430,22 @@ impl eframe::App for NativeApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut viewer = AppTabViewer {
                 pending_close: &mut self.pending_close,
+                profiles: &mut self.profiles,
+                actions: Vec::new(),
             };
             DockArea::new(&mut self.dock)
                 .style(egui_dock::Style::from_egui(ui.style().as_ref()))
                 .show_inside(ui, &mut viewer);
+
+            for action in viewer.actions.drain(..) {
+                match action {
+                    ProfilesAction::Connect(name) => self.connect_profile(name),
+                }
+            }
         });
 
+        self.profiles.show_modal(ctx);
+        self.host_key_dialog(ctx);
         self.close_confirm(ctx);
     }
 }

@@ -6086,6 +6086,7 @@ dependencies = [
  "portable-pty",
  "russh",
  "serde_json",
+ "sshcli-app",
  "sshcli-core",
  "tokio",
 ]
