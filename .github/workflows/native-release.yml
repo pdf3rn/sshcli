@@ -1,0 +1,89 @@
+name: native-release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            ext: ""
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: ".exe"
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/core, crates/app, crates/native
+      - name: Linux native GUI deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb1-dev libxkbcommon-dev libwayland-dev libx11-dev \
+            libgl1-mesa-dev libxrandr-dev libxi-dev libxcursor-dev \
+            libssl-dev
+      - name: Audit no WebView in native dependency tree
+        shell: bash
+        run: |
+          cargo tree -p sshcli-native | grep -Eio 'tauri|wry|webview2-com|webkit2gtk|webkitgtk' && \
+            { echo "::error::native crate must not depend on Tauri/WebView"; exit 1; } || \
+            echo "native dependency tree is free of Tauri/WebView"
+      - name: Build native binary
+        run: cargo build -p sshcli-native --release --target ${{ matrix.target }}
+      - name: Stage artifact
+        shell: bash
+        run: |
+          bin="target/${{ matrix.target }}/release/sshcli-native${{ matrix.ext }}"
+          artifact="sshcli-native-${{ github.ref_name }}-${{ matrix.target }}${{ matrix.ext }}"
+          cp "$bin" "./$artifact"
+          echo "ARTIFACT=$artifact" >> "$GITHUB_ENV"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sshcli-native-${{ github.ref_name }}-${{ matrix.target }}
+          path: ${{ env.ARTIFACT }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create draft release with native binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Collect downloaded artifact files (nested one level under artifacts/).
+          files=$(find artifacts -type f ! -name '.*')
+          gh release create "$TAG" $files \
+            --title "sshcli $TAG" \
+            --notes "Native build (no WebView). Ver $TAG." \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --repo "$GITHUB_REPOSITORY" || \
+          gh release edit "$TAG" --draft=true --repo "$GITHUB_REPOSITORY"

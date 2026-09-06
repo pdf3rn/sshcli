@@ -1,0 +1,40 @@
+name: native-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/core, crates/app, crates/native
+      - name: Linux native GUI deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb1-dev libxkbcommon-dev libwayland-dev libx11-dev \
+            libgl1-mesa-dev libxrandr-dev libxi-dev libxcursor-dev \
+            libssl-dev
+      - name: Test native workspace (excluding Tauri GUI)
+        run: cargo test --workspace --exclude sshcli-gui
+      - name: Build native binary
+        run: cargo build -p sshcli-native --release
+      - name: Audit no WebView in native dependency tree
+        shell: bash
+        run: |
+          cargo tree -p sshcli-native | grep -Eio 'tauri|wry|webview2-com|webkit2gtk|webkitgtk' && \
+            { echo "::error::native crate must not depend on Tauri/WebView"; exit 1; } || \
+            echo "native dependency tree is free of Tauri/WebView"
