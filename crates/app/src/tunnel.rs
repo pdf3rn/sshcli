@@ -38,7 +38,7 @@ pub fn init_state() -> TunnelState {
     Arc::new(Mutex::new(TunnelManager::new()))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct TunnelInfo {
     pub id: String,
     pub profile: String,

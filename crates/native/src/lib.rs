@@ -39,6 +39,7 @@
 pub mod app;
 pub mod color;
 pub mod host_key;
+pub mod panels;
 pub mod profiles;
 pub mod profiles_view;
 pub mod render;

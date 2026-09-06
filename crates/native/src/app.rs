@@ -10,10 +10,11 @@
 use eframe::egui;
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex, TabIndex};
 
-use sshcli_app::commands as app_commands;
+use sshcli_app::{commands as app_commands, sftp_init, telemetry_init, tunnel_init};
 
 use crate::{
     host_key::{self, HostKeyRequest},
+    panels::{SftpView, TelemetryView, TunnelView},
     profiles_view::{ProfilesAction, ProfilesView},
     session::SessionState,
     ssh::{SshConnect, SshTransport},
@@ -21,7 +22,8 @@ use crate::{
 };
 
 /// A single dockable tab: a named terminal session (local or SSH), the
-/// profiles view, or the About page.
+/// profiles view, an SFTP browser, a tunnel panel, a telemetry panel, or the
+/// About page.
 pub enum Tab {
     Session {
         id: usize,
@@ -29,6 +31,9 @@ pub enum Tab {
         session: TerminalSession,
     },
     Profiles,
+    Sftp(SftpView),
+    Tunnels(TunnelView),
+    Telemetry(TelemetryView),
     About,
 }
 
@@ -54,7 +59,7 @@ impl Tab {
     fn id(&self) -> Option<usize> {
         match self {
             Tab::Session { id, .. } => Some(*id),
-            Tab::Profiles | Tab::About => None,
+            Tab::Profiles | Tab::Sftp(_) | Tab::Tunnels(_) | Tab::Telemetry(_) | Tab::About => None,
         }
     }
 
@@ -68,6 +73,9 @@ impl Tab {
                 }
             }
             Tab::Profiles => "Conexiones".to_string(),
+            Tab::Sftp(view) => format!("SFTP · {}", view.profile()),
+            Tab::Tunnels(view) => format!("Túneles · {}", view.profile()),
+            Tab::Telemetry(view) => format!("Telemetría · {}", view.profile()),
             Tab::About => "About".to_string(),
         }
     }
@@ -102,11 +110,17 @@ pub struct NativeApp {
     pending_close: Option<usize>,
     profiles: ProfilesView,
     pending_host_key: Option<PendingHostKey>,
+    /// Shared tokio runtime for async SFTP/tunnel/telemetry operations.
+    runtime: std::sync::Arc<tokio::runtime::Runtime>,
+    sftp_state: sshcli_app::SftpState,
+    tunnel_state: sshcli_app::TunnelState,
+    telemetry_state: sshcli_app::TelemetryState,
 }
 
 impl NativeApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         env_logger::init();
+        let runtime = std::sync::Arc::new(tokio::runtime::Runtime::new().expect("tokio runtime"));
         let dock = DockState::new(vec![
             Tab::new_local(0, "Terminal"),
             Tab::new_local(1, "Terminal 2"),
@@ -120,7 +134,36 @@ impl NativeApp {
             pending_close: None,
             profiles: ProfilesView::default(),
             pending_host_key: None,
+            runtime,
+            sftp_state: sftp_init(),
+            tunnel_state: tunnel_init(),
+            telemetry_state: telemetry_init(),
         }
+    }
+
+    fn add_sftp_tab(&mut self, profile: String) {
+        self.dock.push_to_focused_leaf(Tab::Sftp(SftpView::new(
+            profile,
+            self.runtime.clone(),
+            self.sftp_state.clone(),
+        )));
+    }
+
+    fn add_tunnels_tab(&mut self, profile: String) {
+        self.dock.push_to_focused_leaf(Tab::Tunnels(TunnelView::new(
+            profile,
+            self.runtime.clone(),
+            self.tunnel_state.clone(),
+        )));
+    }
+
+    fn add_telemetry_tab(&mut self, profile: String) {
+        self.dock
+            .push_to_focused_leaf(Tab::Telemetry(TelemetryView::new(
+                profile,
+                self.runtime.clone(),
+                self.telemetry_state.clone(),
+            )));
     }
 
     fn add_local_tab(&mut self) {
@@ -313,6 +356,9 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
         match tab {
             Tab::Session { id, .. } => egui::Id::new(("session", *id)),
             Tab::Profiles => egui::Id::new("profiles"),
+            Tab::Sftp(view) => egui::Id::new(("sftp", view.profile().to_string())),
+            Tab::Tunnels(view) => egui::Id::new(("tunnels", view.profile().to_string())),
+            Tab::Telemetry(view) => egui::Id::new(("telemetry", view.profile().to_string())),
             Tab::About => egui::Id::new("about"),
         }
     }
@@ -324,6 +370,9 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
                 let mut actions = self.profiles.show(ui);
                 self.actions.append(&mut actions);
             }
+            Tab::Sftp(view) => view.show(ui),
+            Tab::Tunnels(view) => view.show(ui),
+            Tab::Telemetry(view) => view.show(ui),
             Tab::About => {
                 ui.heading("sshcli-native");
                 ui.label(
@@ -353,7 +402,7 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
                     false
                 }
             }
-            Tab::Profiles | Tab::About => true,
+            Tab::Profiles | Tab::Sftp(_) | Tab::Tunnels(_) | Tab::Telemetry(_) | Tab::About => true,
         }
     }
 }
@@ -440,6 +489,9 @@ impl eframe::App for NativeApp {
             for action in viewer.actions.drain(..) {
                 match action {
                     ProfilesAction::Connect(name) => self.connect_profile(name),
+                    ProfilesAction::OpenSftp(name) => self.add_sftp_tab(name),
+                    ProfilesAction::OpenTunnels(name) => self.add_tunnels_tab(name),
+                    ProfilesAction::OpenTelemetry(name) => self.add_telemetry_tab(name),
                 }
             }
         });

@@ -26,6 +26,12 @@ pub enum SortBy {
 pub enum ProfilesAction {
     /// Connect to a saved profile (creates an SSH terminal tab).
     Connect(String),
+    /// Open the SFTP browser for a profile.
+    OpenSftp(String),
+    /// Open the tunnel panel for a profile.
+    OpenTunnels(String),
+    /// Open the telemetry panel for a profile.
+    OpenTelemetry(String),
 }
 
 /// State for the profile-list view.
@@ -235,6 +241,15 @@ impl ProfilesView {
 
                     if ui.button("Conectar").clicked() {
                         actions.push(ProfilesAction::Connect(profile.name.clone()));
+                    }
+                    if ui.button("SFTP").clicked() {
+                        actions.push(ProfilesAction::OpenSftp(profile.name.clone()));
+                    }
+                    if ui.button("Túneles").clicked() {
+                        actions.push(ProfilesAction::OpenTunnels(profile.name.clone()));
+                    }
+                    if ui.button("Telemetría").clicked() {
+                        actions.push(ProfilesAction::OpenTelemetry(profile.name.clone()));
                     }
                     if ui.button("Editar").clicked() {
                         self.modal = Some(ProfileModal::new(Some(profile.clone()), &self.profiles));

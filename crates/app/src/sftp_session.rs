@@ -38,7 +38,7 @@ pub fn init_state() -> SftpState {
     Arc::new(Mutex::new(SftpManager::new()))
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct SftpEntry {
     pub name: String,
     pub kind: String,
@@ -277,7 +277,7 @@ pub async fn sftp_rm_dir(state: &SftpState, id: String, path: String) -> Result<
         .map_err(|error| error.to_string())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct LocalEntry {
     pub name: String,
     pub is_dir: bool,
