@@ -28,8 +28,8 @@ jobs:
             libxcb1-dev libxkbcommon-dev libwayland-dev libx11-dev \
             libgl1-mesa-dev libxrandr-dev libxi-dev libxcursor-dev \
             libssl-dev
-      - name: Test native workspace (excluding Tauri GUI)
-        run: cargo test --workspace --exclude sshcli-gui
+      - name: Test native workspace
+        run: cargo test --workspace
       - name: Build native binary
         run: cargo build -p sshcli-native --release
       - name: Audit no WebView in native dependency tree

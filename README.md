@@ -21,36 +21,39 @@ transferencias SFTP y túneles desde una única aplicación.
 
 ```
 crates/core/   sshcli-core: perfiles, credenciales, SSH, SFTP y forwarding
-crates/gui/    sshcli-gui: binario Tauri, comandos IPC y PTY local
-crates/gui/ui/ React, xterm.js, Dockview y componentes de la interfaz
+crates/app/    sshcli-app: servicios de aplicación (managers) sin UI
+crates/native/ sshcli-native: interfaz nativa (eframe/egui + egui_dock)
 ```
 
 La lógica de red, perfiles y credenciales vive en `sshcli-core` y no depende de
-la interfaz gráfica. `sshcli-gui` expone esa funcionalidad al frontend mediante
-comandos y eventos IPC de Tauri.
+la interfaz gráfica. `sshcli-app` expone los managers (sesiones, SFTP, túneles,
+telemetría, perfiles) sin ningún acoplamiento a un framework de UI. `sshcli-native`
+es el binario de escritorio: una interfaz 100 % nativa basada en `eframe`/`egui`, un
+emulador de terminal `alacritty_terminal` sobre `portable-pty`, y `egui_dock` para
+pestañas y splits. No usa Tauri, WebView, Node ni React.
 
 ## Requisitos
 
 Todos los sistemas requieren:
 
 - Rust stable.
-- Node.js 20 o superior.
-- npm.
 
 ### Linux
 
-En Debian/Ubuntu:
+En Debian/Ubuntu, para el stack de ventanas nativo (winit/glutin):
 
 ```bash
 sudo apt update
 sudo apt install \
-  libwebkit2gtk-4.1-dev \
-  libgtk-3-dev \
-  libayatana-appindicator3-dev \
-   librsvg2-dev \
-   libxdo-dev \
-   libdbus-1-dev \
-   libssl-dev
+  libxcb1-dev \
+  libxkbcommon-dev \
+  libwayland-dev \
+  libx11-dev \
+  libgl1-mesa-dev \
+  libxrandr-dev \
+  libxi-dev \
+  libxcursor-dev \
+  libssl-dev
 ```
 
 ### Windows
@@ -59,38 +62,18 @@ sudo apt install \
 - Workload `Desktop development with C++`.
 - Windows SDK.
 - Rust target `stable-x86_64-pc-windows-msvc`.
-- WebView2 Runtime.
 
 ### macOS
 
 - Xcode Command Line Tools.
 - Rust stable.
-- Node.js 20 o superior.
 
 ## Instalación Y Desarrollo
 
-Instalar las dependencias del frontend:
+Compilar y ejecutar la aplicación nativa:
 
 ```bash
-npm install
-```
-
-Ejecutar la aplicación en modo desarrollo:
-
-```bash
-npm run dev
-```
-
-Ejecutar solo el servidor web del frontend:
-
-```bash
-npm run web:dev
-```
-
-Compilar solo el frontend:
-
-```bash
-npm run build:web
+cargo run -p sshcli-native
 ```
 
 ## Tests
@@ -122,20 +105,16 @@ git push origin HEAD --follow-tags
 
 ## Compilación De Escritorio
 
-El build completo compila primero el frontend y después genera los artefactos
-de Tauri:
+El build nativo genera un único binario autónomo (`sshcli-native`) sin
+dependencia de Node ni WebView:
 
 ```bash
-npm run build
+cargo build -p sshcli-native --release
 ```
 
 ### Linux
 
-La configuración actual genera paquetes `deb` y `AppImage` en:
-
-```text
-target/release/bundle/
-```
+El binario se genera en `target/release/sshcli-native`.
 
 ### Windows
 
@@ -143,30 +122,18 @@ Ejecutar desde un entorno Windows con las herramientas indicadas arriba:
 
 ```powershell
 rustup default stable-x86_64-pc-windows-msvc
-npm install
-npm run build
+cargo build -p sshcli-native --release
 ```
 
-El instalador NSIS se genera en:
-
-```text
-target\release\bundle\nsis\
-```
-
-El ejecutable sin instalador se encuentra en:
-
-```text
-target\release\sshcli-gui.exe
-```
+El ejecutable se genera en `target\release\sshcli-native.exe`.
 
 ### macOS
 
 ```bash
-npm install
-npm run build
+cargo build -p sshcli-native --release
 ```
 
-El paquete `.dmg` se genera en `target/release/bundle/dmg/`.
+El binario se genera en `target/release/sshcli-native`.
 
 ## Configuración Y Datos
 
@@ -175,8 +142,8 @@ El paquete `.dmg` se genera en `target/release/bundle/dmg/`.
 - Las contraseñas y secretos se almacenan en el keyring del sistema.
 - En Linux, la sesión de escritorio debe tener disponible un servicio Secret
   Service, como `gnome-keyring` o KDE Wallet.
-- Las preferencias de interfaz se almacenan localmente en el perfil de usuario.
-- La configuración de empaquetado está en `crates/gui/tauri.conf.json`.
+- Las preferencias de interfaz se almacenan en un `prefs.json` dentro del
+  directorio de configuración de la plataforma.
 
 ## Licencia
 
