@@ -18,6 +18,7 @@ portable-pty.workspace = true
 russh.workspace = true
 tokio.workspace = true
 serde_json = "1"
+serde.workspace = true
 # Shell discovery logic shared with the rest of the workspace.
 sshcli-core = { path = "../core" }
 # Tauri-free profile management / validation commands (step 1 extraction).

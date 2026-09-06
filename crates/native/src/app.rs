@@ -15,8 +15,10 @@ use sshcli_app::{commands as app_commands, sftp_init, telemetry_init, tunnel_ini
 use crate::{
     host_key::{self, HostKeyRequest},
     panels::{SftpView, TelemetryView, TunnelView},
+    prefs::Prefs,
     profiles_view::{ProfilesAction, ProfilesView},
     session::SessionState,
+    settings_view::SettingsView,
     ssh::{SshConnect, SshTransport},
     widget::TerminalSession,
 };
@@ -34,6 +36,7 @@ pub enum Tab {
     Sftp(SftpView),
     Tunnels(TunnelView),
     Telemetry(TelemetryView),
+    Settings,
     About,
 }
 
@@ -59,7 +62,12 @@ impl Tab {
     fn id(&self) -> Option<usize> {
         match self {
             Tab::Session { id, .. } => Some(*id),
-            Tab::Profiles | Tab::Sftp(_) | Tab::Tunnels(_) | Tab::Telemetry(_) | Tab::About => None,
+            Tab::Profiles
+            | Tab::Sftp(_)
+            | Tab::Tunnels(_)
+            | Tab::Telemetry(_)
+            | Tab::Settings
+            | Tab::About => None,
         }
     }
 
@@ -76,6 +84,7 @@ impl Tab {
             Tab::Sftp(view) => format!("SFTP · {}", view.profile()),
             Tab::Tunnels(view) => format!("Túneles · {}", view.profile()),
             Tab::Telemetry(view) => format!("Telemetría · {}", view.profile()),
+            Tab::Settings => "Ajustes".to_string(),
             Tab::About => "About".to_string(),
         }
     }
@@ -115,6 +124,8 @@ pub struct NativeApp {
     sftp_state: sshcli_app::SftpState,
     tunnel_state: sshcli_app::TunnelState,
     telemetry_state: sshcli_app::TelemetryState,
+    prefs: Prefs,
+    settings: SettingsView,
 }
 
 impl NativeApp {
@@ -125,6 +136,7 @@ impl NativeApp {
             Tab::new_local(0, "Terminal"),
             Tab::new_local(1, "Terminal 2"),
             Tab::Profiles,
+            Tab::Settings,
             Tab::About,
         ]);
         Self {
@@ -138,6 +150,8 @@ impl NativeApp {
             sftp_state: sftp_init(),
             tunnel_state: tunnel_init(),
             telemetry_state: telemetry_init(),
+            prefs: Prefs::load(),
+            settings: SettingsView::default(),
         }
     }
 
@@ -342,6 +356,9 @@ impl NativeApp {
 struct AppTabViewer<'a> {
     pending_close: &'a mut Option<usize>,
     profiles: &'a mut ProfilesView,
+    prefs: &'a mut Prefs,
+    settings: &'a mut SettingsView,
+    prefs_changed: bool,
     actions: Vec<ProfilesAction>,
 }
 
@@ -359,13 +376,18 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
             Tab::Sftp(view) => egui::Id::new(("sftp", view.profile().to_string())),
             Tab::Tunnels(view) => egui::Id::new(("tunnels", view.profile().to_string())),
             Tab::Telemetry(view) => egui::Id::new(("telemetry", view.profile().to_string())),
+            Tab::Settings => egui::Id::new("settings"),
             Tab::About => egui::Id::new("about"),
         }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         match tab {
-            Tab::Session { session, .. } => session.show(ui),
+            Tab::Session { session, .. } => {
+                // Apply current prefs before rendering the terminal.
+                session.set_prefs(self.prefs.font_size as f32, self.prefs.copy_on_select);
+                session.show(ui);
+            }
             Tab::Profiles => {
                 let mut actions = self.profiles.show(ui);
                 self.actions.append(&mut actions);
@@ -373,6 +395,11 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
             Tab::Sftp(view) => view.show(ui),
             Tab::Tunnels(view) => view.show(ui),
             Tab::Telemetry(view) => view.show(ui),
+            Tab::Settings => {
+                if self.settings.show(ui, self.prefs) {
+                    self.prefs_changed = true;
+                }
+            }
             Tab::About => {
                 ui.heading("sshcli-native");
                 ui.label(
@@ -402,7 +429,12 @@ impl egui_dock::TabViewer for AppTabViewer<'_> {
                     false
                 }
             }
-            Tab::Profiles | Tab::Sftp(_) | Tab::Tunnels(_) | Tab::Telemetry(_) | Tab::About => true,
+            Tab::Profiles
+            | Tab::Sftp(_)
+            | Tab::Tunnels(_)
+            | Tab::Telemetry(_)
+            | Tab::Settings
+            | Tab::About => true,
         }
     }
 }
@@ -433,6 +465,10 @@ impl eframe::App for NativeApp {
         // Poll terminal output even when no other input occurs.
         ctx.request_repaint_after(std::time::Duration::from_millis(50));
 
+        // Apply the persisted interface theme every frame (cheap; keeps the
+        // whole UI consistent when the user flips it in Settings).
+        self.prefs.apply_theme(ctx);
+
         egui::TopBottomPanel::top("sshcli-native-top").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui.button("New local terminal").clicked() {
@@ -440,6 +476,9 @@ impl eframe::App for NativeApp {
                 }
                 if ui.button("Profiles").clicked() {
                     self.dock.push_to_focused_leaf(Tab::Profiles);
+                }
+                if ui.button("Ajustes").clicked() {
+                    self.dock.push_to_focused_leaf(Tab::Settings);
                 }
                 if ui.button("About").clicked() {
                     self.dock.push_to_focused_leaf(Tab::About);
@@ -480,13 +519,24 @@ impl eframe::App for NativeApp {
             let mut viewer = AppTabViewer {
                 pending_close: &mut self.pending_close,
                 profiles: &mut self.profiles,
+                prefs: &mut self.prefs,
+                settings: &mut self.settings,
+                prefs_changed: false,
                 actions: Vec::new(),
             };
             DockArea::new(&mut self.dock)
                 .style(egui_dock::Style::from_egui(ui.style().as_ref()))
                 .show_inside(ui, &mut viewer);
 
-            for action in viewer.actions.drain(..) {
+            let prefs_changed = viewer.prefs_changed;
+            let mut actions = std::mem::take(&mut viewer.actions);
+            drop(viewer);
+
+            if prefs_changed {
+                self.prefs.save();
+            }
+
+            for action in actions.drain(..) {
                 match action {
                     ProfilesAction::Connect(name) => self.connect_profile(name),
                     ProfilesAction::OpenSftp(name) => self.add_sftp_tab(name),

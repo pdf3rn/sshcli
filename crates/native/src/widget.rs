@@ -27,6 +27,10 @@ pub struct TerminalSession {
     session: Box<dyn SessionTransport>,
     model: TermModel,
     font: FontId,
+    /// Size in points, kept separate so preferences can retune it.
+    font_size: f32,
+    /// Copy the selection to the clipboard as soon as it is made.
+    copy_on_select: bool,
     // Search UI state.
     search_open: bool,
     search_query: String,
@@ -63,6 +67,8 @@ impl TerminalSession {
             session,
             model: TermModel::new(80, 24),
             font: FontId::monospace(DEFAULT_POINT_SIZE),
+            font_size: DEFAULT_POINT_SIZE,
+            copy_on_select: false,
             search_open: false,
             search_query: String::new(),
             dragging: false,
@@ -80,6 +86,13 @@ impl TerminalSession {
     /// Whether the underlying transport is remote (SSH).
     pub fn is_remote(&self) -> bool {
         self.session.is_remote()
+    }
+
+    /// Apply user preferences that affect rendering/input (font size, copy-on-select).
+    pub fn set_prefs(&mut self, font_size: f32, copy_on_select: bool) {
+        self.font_size = font_size.max(1.0);
+        self.font = FontId::monospace(self.font_size);
+        self.copy_on_select = copy_on_select;
     }
 
     /// Forward raw bytes to the transport (user keyboard input).
@@ -344,6 +357,9 @@ impl TerminalSession {
         } else {
             self.dragging = false;
             self.have_selection = true;
+            if self.copy_on_select {
+                self.copy_selection(ui);
+            }
         }
     }
 
