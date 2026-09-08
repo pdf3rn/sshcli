@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // OpenCode V1 configuration.
+  // The orchestrator is selectable as the primary agent.
+  // Agents inherit the model selected in the session unless explicitly configured.
+  "default_agent": "migration-orchestrator",
+
+  "permission": {
+    "skill": "allow",
+    "doom_loop": "ask"
+  }
+}
