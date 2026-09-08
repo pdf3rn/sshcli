@@ -1,0 +1,57 @@
+export struct TerminalCell {
+    character: string,
+}
+
+export component TerminalSurface inherits FocusScope {
+    in property <[TerminalCell]> cells;
+    in property <int> columns: 80;
+    in property <int> rows: 24;
+    in property <int> cursor-column: 0;
+    in property <int> cursor-row: 0;
+    in property <bool> cursor-visible: true;
+
+    callback input(string);
+    callback resize(int, int);
+
+    min-width: 240px;
+    min-height: 140px;
+    background: #090f15;
+    forward-focus: key-area;
+
+    // This is a deliberately small canvas renderer: cells are a flat,
+    // row-major model and their coordinates derive only from grid dimensions.
+    // PTY/SSH IO, font metrics, and resize negotiation belong to Rust.
+    Rectangle {
+        clip: true;
+        for cell[index] in root.cells : Text {
+            x: (index % root.columns) * 10px;
+            y: (index / root.columns) * 18px;
+            width: 10px;
+            height: 18px;
+            text: cell.character;
+            color: #dee2ec;
+            font-family: "monospace";
+            font-size: 14px;
+        }
+
+        Rectangle {
+            x: root.cursor-column * 10px;
+            y: root.cursor-row * 18px;
+            width: 10px;
+            height: 18px;
+            background: #56fd93;
+            opacity: root.cursor-visible ? 0.8 : 0.0;
+            TouchArea { }
+        }
+    }
+
+    key-area := FocusScope {
+        key-pressed(event) => {
+            if (event.text != "") {
+                root.input(event.text);
+            }
+            accept
+        }
+        key-released(event) => { accept }
+    }
+}

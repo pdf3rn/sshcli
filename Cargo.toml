@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/gui"]
+members = ["crates/core", "crates/gui", "crates/terminal-ui"]
 
 [workspace.package]
 version = "1.6.0"
@@ -9,6 +9,7 @@ license = "MIT"
 description = "Cross-platform SSH client with a desktop GUI"
 
 [workspace.dependencies]
+alacritty_terminal = "0.26.0"
 directories = "6.0"
 keyring = "3.6"
 portable-pty = "0.9"

@@ -6,6 +6,7 @@ license.workspace = true
 description = "Core SSH/SFTP logic for sshcli, UI-independent"
 
 [dependencies]
+alacritty_terminal.workspace = true
 directories.workspace = true
 russh.workspace = true
 russh-sftp.workspace = true

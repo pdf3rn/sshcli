@@ -11,6 +11,7 @@ pub mod keys;
 pub mod profiles;
 pub mod sftp;
 pub mod shells;
+pub mod terminal;
 pub mod ssh;
 
 pub use error::{AppError, AppResult};
