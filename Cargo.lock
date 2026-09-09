@@ -7417,7 +7417,9 @@ dependencies = [
  "russh-sftp",
  "serde",
  "serde_json",
+ "slint",
  "sshcli-core",
+ "sshcli-terminal-ui",
  "tauri",
  "tauri-build",
  "tokio",
@@ -7427,6 +7429,7 @@ dependencies = [
 name = "sshcli-terminal-ui"
 version = "1.6.0"
 dependencies = [
+ "i-slint-backend-testing",
  "slint",
  "slint-build",
  "sshcli-core",

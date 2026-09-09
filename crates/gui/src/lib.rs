@@ -1,9 +1,20 @@
 mod commands;
 mod local_shell;
+mod native_terminal;
 mod session;
 mod sftp_session;
 mod telemetry;
 mod tunnel;
+
+pub fn run_native() -> Result<(), Box<dyn std::error::Error>> {
+    native_terminal::run_native()
+}
+
+pub fn run_native_ssh(
+    options: sshcli_core::ssh::ConnectionOptions,
+) -> Result<(), Box<dyn std::error::Error>> {
+    native_terminal::run_native_ssh(options)
+}
 
 pub fn run() {
     tauri::Builder::default()

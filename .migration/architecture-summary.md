@@ -16,5 +16,5 @@ sshcli-core: SSH, SFTP, profiles, credentials, host keys, shells, forwarding
 - The UI has four in-memory views: `home`, `connections`, `session`, and `settings`; there is no router.
 - Window baseline is 1100x720, minimum 800x520, one `main` window (`crates/gui/tauri.conf.json`).
 - Frontend persistence is browser `localStorage` for preferences; profiles and secrets use native Rust persistence/keyring. Tabs, layout, SFTP paths, and terminal buffers are not persisted by source evidence.
-- No Slint target exists yet. No Tauri plugins are used directly; the only configured capability is `core:default`.
+- A standalone `crates/terminal-ui` Slint target now exists for the native terminal-surface slice, but it is not build-verified in the current environment. No Tauri plugins are used directly; the only configured capability is `core:default`.
 - Existing target behavior remains the reference. No source Tauri code is removed by this inventory.

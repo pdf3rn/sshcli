@@ -15,6 +15,8 @@ russh.workspace = true
 russh-sftp.workspace = true
 serde.workspace = true
 serde_json = "1"
+slint = "1.17.1"
 sshcli-core = { path = "../core" }
+sshcli-terminal-ui = { path = "../terminal-ui" }
 tauri = { version = "2", features = [] }
 tokio.workspace = true

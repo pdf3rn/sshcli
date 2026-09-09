@@ -20,7 +20,7 @@ All commands currently return `Result<T, String>` over Tauri. Special error stri
 | Event | Producer/payload | Consumer/behavior |
 |---|---|---|
 | `ssh-data` | SSH reader/local PTY; `{id, data: base64}` | `TerminalTab`; filter by id and write to xterm |
-| `ssh-status` | SSH/local lifecycle; `{id, profile, status, message}` | `App`/`TerminalTab`; observed connected/closed |
+| `ssh-status` | SSH/local lifecycle; `{id, profile, status, message}` | `App`/`TerminalTab`; only `closed` currently drives UI behavior; `connected`, `profile`, and `message` have no observed UI consumer |
 | `sftp-progress` | SFTP transfer; `{id,name,direction,transferred,total}` | `SftpPanel`; 256 KiB throttling plus initial/final |
 
 ## Plugins, capabilities, windows
@@ -33,3 +33,29 @@ All commands currently return `Result<T, String>` over Tauri. Special error stri
 ## Replacement boundary
 
 `Slint callback -> Rust service/view-model -> typed result/channel -> Slint property/model`. Keep IO off the UI thread. Replace base64/global event bus internally with typed bytes/events where safe, while preserving ordering and startup readiness semantics.
+
+## Browser/WebView boundaries requiring native replacements
+
+The absence of Tauri plugins does not mean the source has no native-facing APIs. The React UI currently uses:
+
+| Source behavior | Evidence | Target boundary |
+|---|---|---|
+| Preferences JSON persistence | `crates/gui/ui/src/prefs.ts:61-85`; key `sshcli.prefs.v1` | Rust preferences store; preserve defaults and silent fallback/write-failure behavior |
+| Profile import | `HomeView.tsx:47,88-102` | Native file picker/read service -> `import_profiles` content |
+| Profile export | `HomeView.tsx:104-115` | Native save-file service; source uses `Blob`, object URL, and synthetic download |
+| Clipboard | `TerminalTab.tsx:213-255`, `RemoteExplorerPanel.tsx:71-79` | Native clipboard service; copy-on-select, copy/paste, and OSC 7 snippet copy |
+| File drag/drop | `SftpPanel.tsx:447-465` | Native drop path service; source relies on nonstandard `File.path` |
+| DOM/window events | `App.tsx:50-56,321-345`, `use-dialog.ts`, `TerminalTab.tsx:187-200` | Slint focus/key/window/layout callbacks; preserve shortcut precedence and resize policy |
+
+## Lifecycle and cancellation notes
+
+- No central Tauri shutdown handler is present; cleanup is distributed across React effects and best-effort command calls.
+- SSH reader tasks are aborted on explicit close; local PTY children are killed; tunnel stop awaits forwarding shutdown; SFTP close removes the session handle; telemetry disconnect removes cached exec state.
+- SFTP transfers have no cancellation token or UI cancellation behavior. Do not claim cancellation parity during migration.
+- `ssh-status.connected` is emitted by Rust but has no observed frontend state transition; only `closed` is acted upon.
+
+## Native coexistence inventory
+
+- `crates/terminal-ui` provides the verified standalone Slint surface.
+- `crates/gui/src/native_terminal.rs` provides local PTY and native SSH adapters plus the `native_terminal` harness entry point.
+- These adapters coexist with, but do not replace, the Tauri command/event paths.

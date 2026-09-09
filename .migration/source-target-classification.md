@@ -21,5 +21,13 @@
 | `use-dialog.ts` | focus trap/Escape | PRESENTATION, BROWSER_API | none | Slint focus/key handling |
 | `TerminalTab.tsx` clipboard/resize | browser APIs | BROWSER_API | none | native clipboard + Slint resize |
 | `main.tsx`, `vite.config.ts`, CSS/icons | web shell/build/presentation | PRESENTATION | none | native entry/components; retire only after parity |
+| `App.tsx` global shell/status/toast | shell navigation, live-session status, global errors | PRESENTATION, UI_STATE | `native_terminal` is only a bounded target shell | Slint shell + Rust view-model; preserve hidden-but-mounted session workspace |
+| `App.tsx` global key listener | app shortcuts and tab/view navigation | PRESENTATION, UI_STATE, BROWSER_API | none | Slint key handling with explicit text-input/dialog precedence |
+| `use-dialog.ts` | focus trap, Escape, focus restoration | PRESENTATION, BROWSER_API | none | Slint focus/key handling; verify keyboard behavior |
+| `HomeView.tsx` file input/export | browser import/export workflow | BROWSER_API, TAURI_BRIDGE | `commands.rs` content import/export | native file picker/read/save boundary |
+| `prefs.ts` localStorage | preference persistence and fallback | BROWSER_API, UI_STATE | none | Rust native preferences store; preserve `sshcli.prefs.v1` semantics where compatible |
+| `TerminalTab.tsx` clipboard/search/fit | clipboard, search, resize/focus interaction | BROWSER_API, PRESENTATION, UI_STATE | terminal surface/controller partial | native clipboard plus dedicated terminal interaction model |
+| `SftpPanel.tsx` drag/drop | browser file-path acquisition | BROWSER_API, ASYNC_IO | `sftp_session.rs` transfer service | native drop/path boundary; preserve sequential transfers |
+| `ssh-status` connected consumer | emitted lifecycle state with no observed UI action | TAURI_BRIDGE | typed terminal lifecycle events | record as source protocol, do not invent connected UI behavior |
 
 Classification rule: networking, filesystem, credentials, PTY, SSH, SFTP, tunnels, telemetry, and business validation stay in Rust; presentation and transient interaction state move to Slint.

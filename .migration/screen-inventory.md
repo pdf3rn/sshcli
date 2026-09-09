@@ -72,3 +72,28 @@ Source: `TelemetryPanel.tsx`, `telemetry.rs`.
 `PromptDialog.tsx`, `HostKeyDialog.tsx`, `use-dialog.ts`, `TopBar.tsx`, `StatusBar.tsx`, `icons.tsx`, `styles.css`.
 - Preserve modal focus trap, Escape, focus restoration, security warning states, navigation, live-session count, and theme tokens.
 - Target reusable Slint components; Rust owns secrets, host-key verification, and async operations. Risk MEDIUM.
+
+## Audit refresh: cross-cutting source behavior
+
+### Shell, keyboard, and focus
+
+Evidence: `App.tsx`, `TopBar.tsx`, `StatusBar.tsx`, `use-dialog.ts`, `TerminalDockview.tsx`, `TerminalTab.tsx`.
+
+- The single-window shell keeps the session workspace mounted but hidden when another view is selected.
+- Global shortcuts include Ctrl/Cmd-T, W, Tab, PageUp/PageDown, and 1–9; terminal shortcuts include search, clear, and copy.
+- Dialogs trap Tab/Shift+Tab, close on Escape/backdrop click, and restore prior focus.
+- Native target must preserve shortcut precedence in text fields/dialogs and terminal refocus on panel activation.
+
+### Browser APIs
+
+- Preferences use `localStorage` key `sshcli.prefs.v1` with merged defaults and silent fallback on parse/storage errors (`ui/src/prefs.ts`).
+- Profile import uses HTML file input and `File.text()`; export uses `Blob`, object URLs, and synthetic download (`HomeView.tsx`).
+- Terminal and explorer use `navigator.clipboard` (`TerminalTab.tsx`, `RemoteExplorerPanel.tsx`).
+- SFTP drag/drop depends on browser-specific `File.path` (`SftpPanel.tsx:447-465`).
+
+### Source behavior clarifications
+
+- Dockview owns the effective group topology; `App.tsx` tracks tabs/active tab and a split-present flag, not a persisted recursive layout tree.
+- `ssh-status.connected` is emitted but current UI consumers only act on `closed`.
+- Password and host-key retry orchestration is duplicated across App, SFTP, tunnels, and telemetry.
+- No frontend/component test suite was found; Rust tests are the primary existing automated evidence.

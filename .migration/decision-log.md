@@ -61,3 +61,42 @@ Alternatives considered: Embed Slint immediately into the Tauri GUI (blocked by 
 Consequences: The surface can be compiled and visually checked independently once native font dependencies are available; it is not yet connected to the local PTY.
 
 Verification required: Slint compilation, terminal-ui unit tests, keyboard/input and resize checks, and screenshot validation.
+
+Verification result: Slint compilation, terminal-ui unit test, and standalone 800x520 screenshot validation passed on 2026-09-08. Live PTY wiring, keyboard transport, resize negotiation, and error lifecycle remain unverified.
+
+### DEC-005: Keep local PTY transport behind a typed worker adapter
+
+Date: 2026-09-08
+Status: accepted, bounded slice verified; broader parity pending
+
+Context: The native terminal surface must consume PTY bytes without blocking the Slint event loop, while the existing Tauri local-shell path remains the behavioral reference.
+
+Decision: Use a worker-thread `LocalTerminalSurface` adapter with typed `TerminalCommand` and `TerminalEvent` channels. The Slint timer drains events and refreshes `TerminalState`; PTY reads/writes remain off the UI thread.
+
+Consequences: Tauri coexistence is preserved, and the adapter is mounted by a dedicated native binary. Special-key encoding, PTY resize negotiation, startup gating, close propagation, and large-output delivery have harness coverage; Slint event delivery, focus, and visible status behavior remain separate verification requirements.
+
+Verification result: A dedicated `native_terminal` binary mounts the adapter and displays a live local PTY prompt. Build, focused tests, and a headless Slint event harness pass, including key, resize, close, status, special-key PTY delivery, startup ordering, and large-output coverage. The bounded local PTY-to-Slint slice is VERIFIED; host-window geometry automation and broader terminal parity remain outside scope.
+
+### DEC-006: Keep SSH transport on a dedicated worker-thread adapter
+
+Date: 2026-09-08
+Status: implemented, verification blocked
+
+Context: The next migration unit needs to connect the existing Rust SSH shell service to the verified native terminal surface without blocking Slint or replacing the Tauri reference path.
+
+Decision: Add `SshTerminalSurface` with typed command/event channels and a worker-thread Tokio runtime around `sshcli_core::ssh::open_shell`. Keep SSH connection lifecycle, byte streaming, resize, close, and reconnect outside Slint; expose only typed state/events to the controller.
+
+Consequences: The native SSH path can coexist with Tauri and has a credential-free launch harness entry point, but authenticated streaming, host-key handling, reconnect, and live resize require a localhost fixture or configured credentials.
+
+Verification result: Build and focused local terminal tests pass. Real SSH lifecycle verification is BLOCKED because no safe SSH fixture or credentials are available.
+
+### DEC-007: Use only scoped localhost fixtures for SSH verification
+
+Date: 2026-09-08
+Status: verification blocked after three attempts
+
+Context: The native SSH adapter needs authenticated lifecycle evidence without exposing credentials or depending on an external SSH service.
+
+Decision: Use an ephemeral localhost-only SSH fixture with generated temporary keys for transport verification; do not use external credentials. Stop after three materially distinct fixture repairs if no lifecycle event is received.
+
+Verification result: Three fixture attempts (command resolution, absolute `sshd` path, and startup delay) failed to produce an SSH event within five seconds. The unit remains BLOCKED pending captured server diagnostics or an alternate scoped fixture.

@@ -9,13 +9,16 @@ export component TerminalSurface inherits FocusScope {
     in property <int> cursor-column: 0;
     in property <int> cursor-row: 0;
     in property <bool> cursor-visible: true;
+    in property <string> status: "Starting";
 
     callback input(string);
     callback resize(int, int);
+    callback close();
 
     min-width: 240px;
     min-height: 140px;
-    background: #090f15;
+    preferred-width: 800px;
+    preferred-height: 520px;
     forward-focus: key-area;
 
     // This is a deliberately small canvas renderer: cells are a flat,
@@ -23,8 +26,9 @@ export component TerminalSurface inherits FocusScope {
     // PTY/SSH IO, font metrics, and resize negotiation belong to Rust.
     Rectangle {
         clip: true;
+        background: #090f15;
         for cell[index] in root.cells : Text {
-            x: (index % root.columns) * 10px;
+            x: Math.mod(index, root.columns) * 10px;
             y: (index / root.columns) * 18px;
             width: 10px;
             height: 18px;
@@ -32,6 +36,15 @@ export component TerminalSurface inherits FocusScope {
             color: #dee2ec;
             font-family: "monospace";
             font-size: 14px;
+        }
+
+        Text {
+            x: 8px;
+            y: 8px;
+            text: root.status;
+            color: #8b97a8;
+            font-family: "sans-serif";
+            font-size: 12px;
         }
 
         Rectangle {
@@ -47,11 +60,16 @@ export component TerminalSurface inherits FocusScope {
 
     key-area := FocusScope {
         key-pressed(event) => {
-            if (event.text != "") {
-                root.input(event.text);
-            }
+            root.input(event.text);
             accept
         }
         key-released(event) => { accept }
+    }
+
+    changed width => {
+        root.resize(Math.max(1, Math.round(self.width / 10px)), Math.max(1, Math.round(self.height / 18px)));
+    }
+    changed height => {
+        root.resize(Math.max(1, Math.round(self.width / 10px)), Math.max(1, Math.round(self.height / 18px)));
     }
 }

@@ -3,9 +3,9 @@
 ## Status
 
 - Phase: INCREMENTAL_MIGRATION
-- Current unit: native terminal surface
-- Last verified unit: native VT emulator core strategy
-- Overall status: BLOCKED (Slint build prerequisites remain)
+- Current unit: native SSH terminal transport integration
+- Last verified unit: local PTY to terminal surface wiring
+- Overall status: BLOCKED (SSH authentication and reconnect runtime evidence unavailable)
 
 ## Target
 
@@ -31,30 +31,46 @@ Tauri + React/TypeScript UI -> native Rust + Slint UI, preserving observable beh
 - Scope: typed native Rust local PTY start/readiness/output/input/resize/close/error boundary.
 - Implemented: `NativeLocalPtyBoundary` in `crates/gui/src/local_shell.rs`; existing Tauri manager and commands remain unchanged for coexistence.
 - Not implemented: Slint target/surface and terminal emulator/renderer. No plain text replacement was introduced.
-- Status: BLOCKED. The repository has no Slint target, and the focused GUI build cannot run because GTK/GObject system packages are unavailable (`gobject-2.0 >= 2.70`).
+- Status: BLOCKED at the time of that earlier unit. The standalone target was not yet build-verified; the existing GUI build remains independently blocked by GTK/GObject system packages (`gobject-2.0 >= 2.70`).
 
 ## Next unit
 
-Resume verification of the native terminal surface after `fontconfig`/`freetype2` development metadata is available. Do not begin SSH, tabs/splits, SFTP, tunnels, profiles, or settings migration.
+Resolve the blocked native SSH terminal transport unit with a localhost SSH fixture or configured test credentials, then verify bidirectional streaming, resize, reconnect, and lifecycle errors. Do not begin tabs/splits, SFTP, tunnels, profiles, or settings migration.
 
 ## Current unit result
+
+- Scope: one standalone Slint terminal surface backed by `sshcli_core::terminal::TerminalState`; no PTY/SSH IO or other feature migration.
+- Implemented: `crates/terminal-ui` with typed row-major cell model, cursor properties, input callback, resize callback, and preferred 800x520 runtime size.
+- Verified: `cargo fmt --package sshcli-terminal-ui -- --check`, `cargo check --locked -p sshcli-terminal-ui`, and `cargo test --locked -p sshcli-terminal-ui` passed; runtime screenshot verified full content visibility at 800x520 (`/tmp/opencode/terminal-ui-rerun-window.png`).
+- Remaining: connect PTY bytes/input/resize/close and add interaction/error/large-output evidence.
+- Status: VERIFIED for standalone terminal surface; full local PTY vertical slice remains incomplete.
+
+## Earlier unit result
 
 - Scope: select and verify a maintained native VT emulator core; no Slint surface or painting.
 - Selected: `alacritty_terminal` 0.26.0 (Apache-2.0), wrapped by `sshcli_core::terminal::TerminalState`.
 - Rejected for this unit: direct `vte` alone (parser without terminal grid/renderable state) and `termwiz` (not selected because the existing API/renderer integration was less direct for this target).
 - Verified: ANSI/cursor movement, alternate screen, Unicode/wide-character state, resize/scrollback, and escape sequences split across input chunks.
-- Status: VERIFIED for emulator-core strategy; full local PTY target remains blocked pending a Slint surface and GUI prerequisites.
-
-## Current unit result
-
-- Scope: one standalone Slint terminal surface backed by `sshcli_core::terminal::TerminalState`; no PTY/SSH IO or other feature migration.
-- Implemented: `crates/terminal-ui` with typed row-major cell model, cursor properties, input callback, resize callback, and a directly checkable `ui/terminal.slint` entry.
-- Status: BLOCKED. `cargo check -p sshcli-terminal-ui` cannot run because `fontconfig` and `freetype2` development packages are unavailable through pkg-config. Visual verification was not possible.
+- Status: VERIFIED for emulator-core strategy; full local PTY target remains incomplete pending PTY-to-surface wiring.
 
 ## Verification summary
 
-- Rust build: `cargo check -p sshcli-core` passed; `sshcli-terminal-ui` blocked by missing fontconfig/freetype2 metadata; `sshcli-gui` remains blocked by GTK/GObject metadata
-- Rust tests: 12 core tests passed; terminal-ui tests could not compile because its Slint build dependency is blocked
-- Slint compile: BLOCKED by missing fontconfig/freetype2 development metadata
-- Visual verification: NOT RUN
-- Behavior parity: BLOCKED; boundary tests are present but could not execute
+- Rust build: `cargo check --locked -p sshcli-terminal-ui` and `cargo check --locked -p sshcli-gui --bin native_terminal` passed
+- Rust tests: prior terminal-ui (7) and GUI (8) tests passed; the new SSH fixture lifecycle test fails to receive an event within 5 seconds
+- Slint compile: PASSED for the standalone terminal surface
+- Visual verification: PASSED at 800x520; screenshot `/tmp/opencode/terminal-ui-rerun-window.png`
+- Behavior parity: PARTIAL overall; the local PTY surface unit is verified by headless Slint callbacks, PTY harnesses, and native runtime evidence, while SSH transport and broader terminal features remain unverified
+
+## Current unit result
+
+- Scope: typed controller and worker adapter connecting `NativeLocalPtyBoundary` to `crates/terminal-ui`; no SSH, workspace, SFTP, tunnel, profile, or settings work.
+- Implemented: `TerminalController`, typed command/event channels, worker-thread PTY pump, input/resize/close forwarding, and error/closed status handling.
+- Verification: focused terminal-ui tests (7), GUI tests (8), GUI check, native PTY boundary/harness tests, and package formatting passed. Native runtime displayed a live PTY prompt at 800x520. Workspace-wide formatting still has pre-existing unrelated failures.
+- Status: VERIFIED for the bounded local PTY surface slice. The native launch path mounts the adapter; headless Slint tests cover key, resize, close, status, and large-model callbacks; PTY harness tests cover special keys, resize negotiation, startup gating/order, close propagation, and 64 KiB output; runtime evidence shows a live prompt at 800x520. Host-window geometry automation and full terminal parity remain outside this unit.
+
+## Current unit result
+
+- Scope: native SSH transport adapter for the verified terminal surface; no tabs/splits, SFTP, tunnels, profiles, or settings work.
+- Implemented: `SshTerminalSurface`, worker-thread `open_shell` transport, typed bidirectional output/input/resize/close channels, connecting/connected/closed/error lifecycle states, reconnect request path, and `native_terminal` harness entry point.
+- Verification: native terminal UI and GUI focused tests/checks passed; local PTY/Slint harnesses remain green. Real SSH authentication, host-key behavior, reconnect after remote disconnect, and live SSH resize are not exercised.
+- Status: BLOCKED after three distinct localhost `sshd` fixture attempts; no SSH lifecycle evidence is available.

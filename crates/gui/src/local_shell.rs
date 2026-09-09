@@ -158,11 +158,18 @@ impl NativeLocalPtyBoundary {
             let mut buffer = [0u8; 8192];
             loop {
                 match reader.read(&mut buffer) {
-                    Ok(0) => break,
+                    Ok(0) => {
+                        // EOF is the point at which the PTY reader has
+                        // drained all output. Emit Closed here rather than
+                        // racing the child-wait thread with a premature
+                        // lifecycle event.
+                        let _ = read_sender.send(LocalPtyEvent::Closed);
+                        break;
+                    }
                     Ok(size) => {
                         let output = buffer[..size].to_vec();
                         let emit_now = match startup.lock() {
-                            Ok(mut startup) if startup.ready => true,
+                            Ok(startup) if startup.ready => true,
                             Ok(mut startup) => {
                                 startup.pending.push(output.clone());
                                 false
@@ -180,15 +187,14 @@ impl NativeLocalPtyBoundary {
                     }
                     Err(error) => {
                         let _ = read_sender.send(LocalPtyEvent::Error(error.to_string()));
+                        let _ = read_sender.send(LocalPtyEvent::Closed);
                         break;
                     }
                 }
             }
         });
-        let wait_sender = sender;
         std::thread::spawn(move || {
             let _ = child.wait();
-            let _ = wait_sender.send(LocalPtyEvent::Closed);
         });
 
         self.next_id += 1;
@@ -215,16 +221,16 @@ impl Default for NativeLocalPtyBoundary {
 
 impl LocalPtyHandle {
     pub fn ready(&self) -> Result<(), LocalPtyError> {
-        let (pending, sender) = self
+        // Keep the gate locked while releasing buffered output. Otherwise the
+        // reader can observe `ready` and enqueue newer output before the
+        // buffered chunks, changing the PTY's observable startup order.
+        let mut startup = self
             .startup
             .lock()
-            .map_err(|_| LocalPtyError::StatePoisoned)
-            .map(|mut startup| {
-                startup.ready = true;
-                (std::mem::take(&mut startup.pending), startup.sender.clone())
-            })?;
-        if let Some(sender) = sender {
-            for output in pending {
+            .map_err(|_| LocalPtyError::StatePoisoned)?;
+        startup.ready = true;
+        if let Some(sender) = startup.sender.clone() {
+            for output in std::mem::take(&mut startup.pending) {
                 let _ = sender.send(LocalPtyEvent::Output(output));
             }
         }
@@ -657,5 +663,175 @@ mod tests {
             result,
             Err(LocalPtyError::InvalidShell(ref shell)) if shell == "/definitely/not/a/shell"
         ));
+    }
+
+    #[test]
+    fn startup_output_is_held_until_ready_and_then_released_in_order() {
+        let mut boundary = NativeLocalPtyBoundary::new();
+        let session = boundary
+            .start(80, 24, Some("/bin/echo"))
+            .expect("start echo PTY");
+
+        // A short-lived command may close before readiness is acknowledged;
+        // only output escaping the startup gate is a failure here.
+        if let Ok(LocalPtyEvent::Output(_)) = session
+            .events
+            .recv_timeout(std::time::Duration::from_millis(100))
+        {
+            panic!("startup output escaped before ready");
+        }
+        session.ready().expect("ready");
+        let mut saw_output = false;
+        for _ in 0..2 {
+            match session
+                .events
+                .recv_timeout(std::time::Duration::from_secs(2))
+                .expect("released startup output")
+            {
+                LocalPtyEvent::Output(bytes) => {
+                    assert_eq!(bytes, b"\r\n");
+                    saw_output = true;
+                    break;
+                }
+                LocalPtyEvent::Closed => {}
+                LocalPtyEvent::Error(error) => panic!("PTY error: {error}"),
+            }
+        }
+        assert!(saw_output);
+    }
+
+    #[test]
+    fn special_key_bytes_reach_the_pty_unchanged() {
+        let mut boundary = NativeLocalPtyBoundary::new();
+        let session = boundary
+            .start(80, 24, Some("/bin/sh"))
+            .expect("start shell PTY");
+        session.ready().expect("ready");
+        session
+            .input(b"stty -icanon -echo; printf '\\101\\102\\103'; dd if=/dev/tty bs=1 count=3 2>/dev/null | od -An -tx1; exit\n")
+            .expect("configure reader");
+
+        let mut output = Vec::new();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while !output.windows(b"ABC".len()).any(|window| window == b"ABC") {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            match session
+                .events
+                .recv_timeout(remaining)
+                .expect("PTY readiness output")
+            {
+                LocalPtyEvent::Output(bytes) => output.extend(bytes),
+                LocalPtyEvent::Error(error) => panic!("PTY error: {error}"),
+                LocalPtyEvent::Closed => panic!("PTY closed before key input"),
+            }
+        }
+        session.input(b"\x1b[A").expect("send arrow key");
+        while !output
+            .windows(b"1b 5b 41".len())
+            .any(|window| window == b"1b 5b 41")
+        {
+            match session
+                .events
+                .recv_timeout(std::time::Duration::from_secs(2))
+                .expect("encoded key output")
+            {
+                LocalPtyEvent::Output(bytes) => output.extend(bytes),
+                LocalPtyEvent::Error(error) => panic!("PTY error: {error}"),
+                LocalPtyEvent::Closed => break,
+            }
+        }
+        assert!(
+            output
+                .windows(b"1b 5b 41".len())
+                .any(|window| window == b"1b 5b 41"),
+            "output was {output:?}"
+        );
+    }
+
+    #[test]
+    fn resize_is_negotiated_by_the_pty() {
+        let mut boundary = NativeLocalPtyBoundary::new();
+        let session = boundary
+            .start(80, 24, Some("/bin/sh"))
+            .expect("start shell PTY");
+        session.ready().expect("ready");
+        session.resize(100, 30).expect("resize PTY");
+        session.input(b"stty size; exit\n").expect("query PTY size");
+        let mut output = Vec::new();
+        loop {
+            match session
+                .events
+                .recv_timeout(std::time::Duration::from_secs(2))
+                .expect("resize output")
+            {
+                LocalPtyEvent::Output(bytes) => output.extend(bytes),
+                LocalPtyEvent::Error(error) => panic!("PTY error: {error}"),
+                LocalPtyEvent::Closed => break,
+            }
+        }
+        assert!(
+            output
+                .windows(b"30 100".len())
+                .any(|window| window == b"30 100"),
+            "output was {output:?}"
+        );
+    }
+
+    #[test]
+    fn explicit_close_propagates_closed_event() {
+        let mut boundary = NativeLocalPtyBoundary::new();
+        let session = boundary
+            .start(80, 24, Some("/bin/sh"))
+            .expect("start shell PTY");
+        session.ready().expect("ready");
+        session.input(b"sleep 30\n").expect("start long command");
+        session.close().expect("close PTY");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            match session
+                .events
+                .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                .expect("closed event")
+            {
+                LocalPtyEvent::Closed => break,
+                LocalPtyEvent::Error(error) => panic!("PTY error: {error}"),
+                LocalPtyEvent::Output(_) => {}
+            }
+        }
+    }
+
+    #[test]
+    fn large_output_is_delivered_without_truncation() {
+        let mut boundary = NativeLocalPtyBoundary::new();
+        let session = boundary
+            .start(80, 24, Some("/bin/sh"))
+            .expect("start shell PTY");
+        session.ready().expect("ready");
+        session
+            .input(b"printf MARK; dd if=/dev/zero bs=8192 count=8 2>/dev/null | tr '\\0' x; exit\n")
+            .expect("write large output command");
+        let mut output = Vec::new();
+        loop {
+            match session
+                .events
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("large output event")
+            {
+                LocalPtyEvent::Output(bytes) => output.extend(bytes),
+                LocalPtyEvent::Error(error) => panic!("PTY error: {error}"),
+                LocalPtyEvent::Closed => break,
+            }
+        }
+        let marker = output
+            .windows(b"MARK".len())
+            .rposition(|window| window == b"MARK")
+            .expect("large-output marker");
+        assert_eq!(
+            output[marker + b"MARK".len()..]
+                .iter()
+                .filter(|&&byte| byte == b'x')
+                .count(),
+            64 * 1024
+        );
     }
 }

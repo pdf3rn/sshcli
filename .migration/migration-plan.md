@@ -14,6 +14,6 @@
 12. Replace browser preferences/clipboard/file dialogs with explicit native services.
 13. Run cross-platform behavior, keyboard, persistence, visual, and packaging verification; retire Tauri/web code only after each unit is VERIFIED.
 
-## First recommended bounded unit
+## Current recommended bounded unit
 
-**Local PTY terminal vertical slice.** Keep `crates/gui/src/local_shell.rs` initially. Add a typed native adapter for start, readiness, byte output, input, resize, and closed/error status; render one local PTY in a dedicated terminal surface. Explicitly exclude SSH authentication, tabs/splits, SFTP, tunnels, and workspace persistence. The slice must test startup buffering/order, ANSI/VT basics, resize, input encoding, focus, close, and large output before broad implementation.
+**Native SSH terminal transport.** The local PTY/surface slice is now verified. Resolve the scoped SSH fixture blocker, then verify authentication/host-key behavior, bidirectional streaming, input, live resize, remote close, reconnect, lifecycle errors, and native visual status. Keep tabs/splits, SFTP, tunnels, profiles, settings, and broader terminal features out of scope until this unit is verified.

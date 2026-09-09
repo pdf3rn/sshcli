@@ -12,3 +12,6 @@ sshcli-core = { path = "../core" }
 
 [build-dependencies]
 slint-build = "1.17.1"
+
+[dev-dependencies]
+i-slint-backend-testing = "1.17.1"
