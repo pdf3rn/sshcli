@@ -5,7 +5,7 @@
 - Phase: INCREMENTAL_MIGRATION
 - Current unit: native SSH terminal transport integration
 - Last verified unit: local PTY to terminal surface wiring
-- Overall status: BLOCKED (SSH authentication and reconnect runtime evidence unavailable)
+- Overall status: BLOCKED (SSH fixture is corrected and independently validated, but native lifecycle test cannot compile in this environment)
 
 ## Target
 
@@ -71,6 +71,10 @@ Resolve the blocked native SSH terminal transport unit with a localhost SSH fixt
 ## Current unit result
 
 - Scope: native SSH transport adapter for the verified terminal surface; no tabs/splits, SFTP, tunnels, profiles, or settings work.
-- Implemented: `SshTerminalSurface`, worker-thread `open_shell` transport, typed bidirectional output/input/resize/close channels, connecting/connected/closed/error lifecycle states, reconnect request path, and `native_terminal` harness entry point.
-- Verification: native terminal UI and GUI focused tests/checks passed; local PTY/Slint harnesses remain green. Real SSH authentication, host-key behavior, reconnect after remote disconnect, and live SSH resize are not exercised.
-- Status: BLOCKED after three distinct localhost `sshd` fixture attempts; no SSH lifecycle evidence is available.
+- Implemented: `SshTerminalSurface`, worker-thread `open_shell` transport, typed bidirectional output/input/resize/close channels, connecting/connected/closed/error lifecycle states, reconnect request path, and `native_terminal` harness entry point. This attempt changed only the test fixture: `PermitRootLogin prohibit-password` replaces `no`, because the environment runs the fixture as `root`.
+- Diagnostics: `/usr/sbin/sshd` and `/usr/bin/ssh` are OpenSSH 10.2p1; `sshd -t` passed. With the prior fixture, sshd stderr reported `ROOT LOGIN REFUSED` after `Accepted key`; the corrected fixture's OpenSSH client run returned status 0 and produced `READY` and `ECHO:hello`.
+- Verification: the narrow Rust lifecycle test is blocked before compilation by missing `gobject-2.0 >= 2.70`, `glib-2.0 >= 2.70`, and `gio-2.0 >= 2.70` pkg-config packages. `cargo fmt --package sshcli-gui -- --check` fails on existing formatting differences, including this file; `cargo check --locked -p sshcli-core` passed. No native Rust SSH lifecycle, host-key, reconnect, or live resize evidence is claimed.
+- Follow-up verification: `cargo check --locked -p sshcli-core` still passes; the required GTK/GLib/GObject/GIO pkg-config metadata remains unavailable, so the narrow GUI lifecycle test cannot be compiled.
+- Continuation gate: prerequisite checks still report `gobject-status=1`, `glib-status=1`, and `gio-status=1`. One environment repair was attempted (`apt-get`/`dpkg`), but package configuration timed out while configuring an interrupted PostgreSQL package; the required development metadata remains unavailable.
+- Dependency gate: no later migration unit is dependency-safe while native SSH transport remains unverified; tabs/splits and subsequent features are not started.
+- Status: BLOCKED; the fixture correction and environment prerequisite attempt did not produce native Rust SSH lifecycle evidence. Stop this unit rather than retrying fixture/transport changes.

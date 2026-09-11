@@ -397,7 +397,7 @@ mod tests {
             let config = dir.join("sshd_config");
             let user = std::env::var("USER").unwrap();
             fs::write(&config, format!(
-                "Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nAuthorizedKeysFile {}\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nPermitRootLogin no\nStrictModes no\nForceCommand {}\nLogLevel VERBOSE\n",
+                "Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nAuthorizedKeysFile {}\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nPermitRootLogin prohibit-password\nStrictModes no\nForceCommand {}\nLogLevel VERBOSE\n",
                 host_key.display(), dir.join("authorized_keys").display(), command.display()
             )).unwrap();
             let config_check = Command::new("/usr/sbin/sshd")
